@@ -4,7 +4,7 @@ from agent_service import app
 client = TestClient(app)
 
 def test_run_agent():
-    response = client.post("/run_agent", json={"query": "Hello, Agent!"})
+    response = client.post("/run_agent", json={"query": "I am Rajesh Nerurkar, an AI Engineer. Can you greet me?"})
     assert response.status_code == 200
     data = response.json()
     assert "response" in data
