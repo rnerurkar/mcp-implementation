@@ -1,7 +1,6 @@
 # %%
 # To install dependencies, run the following command in your terminal:
 # pip install PyJWT requests cryptography google-cloud-secret-manager google-cloud-kms fastapi
-
 # %%
 """
 MCP Security Controls Implementation
