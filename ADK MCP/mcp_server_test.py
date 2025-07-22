@@ -11,7 +11,9 @@ class TestMCPServer(unittest.TestCase):
         response = self.client.get("/mcp-server/openapi.json")
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        # Check if the OpenAPI spec contains the expected tool paths
         self.assertIn("paths", data)
+        # Check if the hello tool is registered
         self.assertIn("/mcp-server/tools/hello/invoke", data["paths"])
 
     def test_hello_tool(self):
