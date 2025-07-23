@@ -173,16 +173,21 @@ class CredentialManager:
         response = self.client.access_secret_version(name=name)
         return response.payload.data.decode("UTF-8")
 
-    def execute_with_credentials(self, tool_name: str, params: Dict[str, Any]) -> Any:
+    def get_credentials(self, tool_name: str, params: Dict[str, Any]) -> Any:
         """Execute tool with injected credentials"""
+        # Example: Fetch credentials based on tool type
         creds = self.get_credential(f"{tool_name}-credentials")
+        return creds
         # Implementation would vary by tool type
-        if tool_name == "database":
-            return self._execute_db_query(creds, params)
-        elif tool_name == "api":
-            return self._call_api(creds, params)
-        else:
-            raise ValueError(f"Unknown tool: {tool_name}")
+        #if tool_name == "database":
+        #    return self._execute_db_query(creds, params)
+        #elif tool_name == "api":
+        #    return self._call_api(creds, params)
+        #elif tool_name == "hello":
+            # Hello tool execution logic
+        #    return {"status": "success", "message": params.values()}
+        #else:
+         #   raise ValueError(f"Unknown tool: {tool_name}")
 
     def _execute_db_query(self, connection_string: str, params: Dict[str, Any]) -> Any:
         """Securely execute database query"""

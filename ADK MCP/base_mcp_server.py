@@ -1,10 +1,6 @@
 from abc import ABC, abstractmethod
-import os
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from fastapi import HTTPException
-
-# Import all security controls from your notebook implementation
 from mcp_security_controls import (
     InputSanitizer,
     AzureTokenValidator,
@@ -19,69 +15,67 @@ from mcp_security_controls import (
 class BaseMCPServer(ABC):
     """
     Base MCP Server with all security controls.
+    Implements a secure request processing pipeline.
     """
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
 
-        # Initialize security components
-        self.input_sanitizer = InputSanitizer()
+        # Security components
+        self.input_sanitizer = InputSanitizer(security_profile=config.get("input_sanitizer_profile", "default"))
         self.token_validator = AzureTokenValidator(
             expected_audience=config["azure_audience"],
             required_scopes=config["azure_scopes"],
             issuer=config["azure_issuer"]
         )
-        self.credential_manager = CredentialManager(
-            project_id=config["gcp_project"]
-        )
-        self.context_sanitizer = ContextSanitizer(
-            security_level=config.get("security_level", "standard")
-        )
-        self.context_security = ContextSecurity(
-            kms_key_path=config.get("kms_key_path")
-        )
-        self.opa_client = OPAPolicyClient(
-            opa_url=config["opa_url"]
-        )
+        self.credential_manager = CredentialManager(project_id=config["gcp_project"])
+        self.context_sanitizer = ContextSanitizer(security_level=config.get("security_level", "standard"))
+        self.context_security = ContextSecurity(kms_key_path=config.get("kms_key_path"))
+        self.opa_client = OPAPolicyClient(opa_url=config["opa_url"])
 
-    # TEMPLATE METHOD (invariant sequence)
     def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process incoming request with full security pipeline.
+        Returns a signed, sanitized context or error.
         """
         try:
             # 1. Authentication & Authorization
             token_claims = self.token_validator.validate(request["token"])
-            # 2. Sanitize input
-            sanitized_input = self.input_sanitizer.sanitize(request["parameters"])
-            # 3. Input validation
+
+            # 2. Input Sanitization
+            sanitized_params = self.input_sanitizer.sanitize(request.get("parameters", {}))
+
+            # 3. Input Validation
             input_validator = SchemaValidator(
                 schema=self._load_tool_schema(request["tool_name"]),
                 security_rules=self._load_security_rules()
             )
-            validated_params = input_validator.validate(request["parameters"])
+            validated_params = input_validator.validate(sanitized_params)
 
-            # 4. Policy enforcement
+            # 4. Policy Enforcement
             policy_context = {
-                "user": token_claims["sub"],
+                "user": token_claims.get("sub"),
                 "tool": request["tool_name"],
                 "params": validated_params
             }
             if not self.opa_client.check_policy(policy_context):
-                raise PermissionError("Policy violation")
+                raise PermissionError("OPA policy violation.")
 
-            # 5. Secure execution
-            result = self.credential_manager.execute_with_credentials(
-                request["tool_name"],
-                validated_params
-            )
+            # 5. Credential Injection & Secure Execution
+            credentials = self.credential_manager.get_credentials(request["tool_name"], validated_params)
+            result = self.fetch_data(request["tool_name"], validated_params, credentials)
 
-            # 6. Context security
-            sanitized_result = self.context_sanitizer.sanitize(result)
-            signed_result = self.context_security.sign(sanitized_result)
+            # 6. Build Agent Context
+            context = self.build_context(result)
 
-            return {"status": "success", "data": signed_result}
+            # 7. Context Sanitization & Signing
+            sanitized_context = self.context_sanitizer.sanitize(context)
+            signed_context = self.context_security.sign(sanitized_context)
+
+            return {"status": "success", "data": signed_context}
 
         except Exception as e:
+            # Centralized error handling
             return {"status": "error", "message": str(e)}
 
     @abstractmethod
@@ -113,14 +107,14 @@ class BaseMCPServer(ABC):
         pass
 
     @abstractmethod
-    def fetch_data(self, request_payload: dict):
+    def fetch_data(self, toolname: str, validated_params: dict, credentials: dict):
         """
         Retrieve data from source system.
         """
         pass
 
     @abstractmethod
-    def build_context(self, raw_data) -> dict:
+    def build_context(self, raw_data: Any) -> dict:
         """
         Convert to agent-consumable JSON-LD format.
         """

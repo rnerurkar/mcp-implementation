@@ -53,6 +53,7 @@ class MCPServer(BaseMCPServer):
 
     def fetch_data(self, request_payload: dict):
         # For the hello tool, just return the parameters as "raw data"
+        # If parameters are not present, return an empty dict
         return request_payload.get("parameters", {})
 
     def build_context(self, raw_data) -> dict:
