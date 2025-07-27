@@ -51,10 +51,10 @@ class MCPServer(BaseMCPServer):
         if not required_scopes.issubset(set(scopes)):
             raise PermissionError("Missing required scopes for tool invocation.")
 
-    def fetch_data(self, request_payload: dict):
+    def fetch_data(self, validated_params: dict, credentials: dict):
         # For the hello tool, just return the parameters as "raw data"
         # If parameters are not present, return an empty dict
-        return request_payload.get("parameters", {})
+        return validated_params
 
     def build_context(self, raw_data) -> dict:
         # For the hello tool, context is just the input parameters
@@ -83,7 +83,7 @@ class MCPServer(BaseMCPServer):
 def create_app():
     config = {
         "azure_audience": os.getenv("AZURE_AUDIENCE"),
-        "azure_scopes": os.getenv("AZURE_SCOPES", "").split(),
+        "azure_scopes": os.getenv("AZURE_SCOPES", "").split() if os.getenv("AZURE_SCOPES") else [],
         "azure_issuer": os.getenv("AZURE_ISSUER"),
         "gcp_project": os.getenv("GCP_PROJECT"),
         "opa_url": os.getenv("OPA_URL", "http://localhost:8181"),
