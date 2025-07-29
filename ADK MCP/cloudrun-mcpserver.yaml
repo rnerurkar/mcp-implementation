@@ -1,0 +1,93 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: mcp-server-service
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scaling configuration
+        run.googleapis.com/min-scale: "1"
+        run.googleapis.com/max-scale: "20"
+        
+        # Resource allocation
+        run.googleapis.com/cpu: "1"
+        run.googleapis.com/memory: "2Gi"
+        
+        # Startup and health probes
+        run.googleapis.com/startup-probe-timeout: "120s"
+        run.googleapis.com/startup-probe-period: "10s"
+        run.googleapis.com/startup-probe-failure-threshold: "10"
+        
+        # VPC and networking (if needed)
+        # run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/REGION/connectors/CONNECTOR_NAME
+        
+        # Execution environment
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: mcp-server-service-account@PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 100
+      timeoutSeconds: 300
+      containers:
+      - name: mcp-server
+        image: gcr.io/PROJECT_ID/mcp-server-service:latest
+        ports:
+        - name: http1
+          containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: AZURE_AUDIENCE
+          value: "api://your-mcp-server-app-id"
+        - name: AZURE_ISSUER
+          value: "https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0"
+        - name: AZURE_SCOPES
+          value: "api://your-mcp-server-app-id/.default"
+        - name: GCP_PROJECT
+          value: "PROJECT_ID"
+        - name: OPA_URL
+          value: "http://localhost:8181"
+        - name: SECURITY_LEVEL
+          value: "high"
+        - name: KMS_KEY_PATH
+          value: "projects/PROJECT_ID/locations/global/keyRings/mcp-ring/cryptoKeys/mcp-key"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+          requests:
+            cpu: "0.5"
+            memory: "1Gi"
+        # Startup probe
+        startupProbe:
+          httpGet:
+            path: /mcp-server/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /mcp-server/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /mcp-server/health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+  traffic:
+  - percent: 100
+    latestRevision: true

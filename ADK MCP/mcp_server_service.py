@@ -62,8 +62,35 @@ class MCPServer(BaseMCPServer):
 
     def get_fastapi_app(self):
         mcp_app = self.mcp.http_app(path='/mcp', transport="sse")
-        app = FastAPI(lifespan=mcp_app.lifespan)
+        app = FastAPI(
+            title="MCP Server",
+            description="Model Context Protocol Server with secure tool execution",
+            version="1.0.0",
+            lifespan=mcp_app.lifespan
+        )
         app.mount("/mcp-server", mcp_app)
+
+        @app.get("/health")
+        async def health_check():
+            """Health check endpoint for Cloud Run and monitoring."""
+            try:
+                # Basic health check - verify server is responsive
+                tools_count = len(self.mcp._tools) if hasattr(self.mcp, '_tools') else 0
+                return {
+                    "status": "healthy",
+                    "service": "mcp-server",
+                    "version": "1.0.0",
+                    "tools_registered": tools_count,
+                    "security_enabled": bool(self.config.get("azure_audience")),
+                    "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+                }
+            except Exception as e:
+                raise HTTPException(status_code=503, detail=f"Health check failed: {str(e)}")
+
+        @app.get("/mcp-server/health")
+        async def mcp_health_check():
+            """Health check endpoint specifically for MCP server mount point."""
+            return await health_check()
 
         @app.post("/invoke")
         async def invoke_tool(request: Request):
@@ -77,6 +104,22 @@ class MCPServer(BaseMCPServer):
                 raise
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/")
+        async def root():
+            """Root endpoint with service information."""
+            return {
+                "service": "MCP Server",
+                "version": "1.0.0",
+                "endpoints": {
+                    "health": "/health",
+                    "mcp_server": "/mcp-server",
+                    "mcp_health": "/mcp-server/health",
+                    "invoke_tool": "/invoke",
+                    "docs": "/docs"
+                },
+                "description": "Model Context Protocol Server with secure tool execution"
+            }
 
         return app
 
