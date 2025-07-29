@@ -1,0 +1,66 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: agent-greeting-service
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        # Cloud Run configuration
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/memory: "2Gi"
+        run.googleapis.com/cpu: "1"
+        run.googleapis.com/max-scale: "10"
+        run.googleapis.com/min-scale: "1"  # Keep at least 1 instance warm
+        # Startup probe configuration
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      serviceAccountName: your-service-account@your-project.iam.gserviceaccount.com
+      containers:
+      - image: gcr.io/YOUR_PROJECT_ID/agent-greeting-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: AGENT_MODEL
+          value: "gemini-1.5-flash"
+        - name: AGENT_NAME
+          value: "GreetingAgent"
+        - name: AGENT_INSTRUCTION
+          value: "You are a friendly greeting agent. Welcome users warmly and help them with their requests."
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+          requests:
+            memory: "1Gi"
+            cpu: "0.5"
+        # Startup probe to ensure agent is initialized
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
