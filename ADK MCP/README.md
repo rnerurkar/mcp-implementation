@@ -67,11 +67,12 @@ ADK MCP/
 │   └── test_import.py             # Package import validation
 │
 ├── Deployment Infrastructure
-│   ├── Dockerfile                # Agent Service container build
+│   ├── Dockerfile.agentservice   # Agent Service container build
 │   ├── Dockerfile.mcpserver      # MCP Server container build
-│   ├── cloudrun-service.yaml     # Agent Service Cloud Run config
+│   ├── cloudrun-agentservice.yaml # Agent Service Cloud Run config
 │   ├── cloudrun-mcpserver.yaml   # MCP Server Cloud Run config
 │   ├── deploy_agent.sh           # Agent Service deployment script
+│   ├── deploy_agent.ps1          # Agent Service deployment (PowerShell)
 │   ├── deploy_mcpserver.sh       # MCP Server deployment script
 │   ├── deploy_mcpserver.ps1      # MCP Server deployment (PowerShell)
 │   └── requirements.txt          # Complete dependency list
@@ -282,7 +283,7 @@ chmod +x deploy_agent.sh
 
 #### **PowerShell Deployment (Windows)**
 ```powershell
-# Deploy using PowerShell (if available)
+# Deploy Agent Service using PowerShell
 .\deploy_agent.ps1 your-project-id us-central1
 ```
 
@@ -311,7 +312,7 @@ export PROJECT_ID="your-project-id"
 export SERVICE_NAME="agent-greeting-service"
 
 # Build and push Agent Service
-docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME .
+docker build -f Dockerfile.agentservice -t gcr.io/$PROJECT_ID/$SERVICE_NAME .
 docker push gcr.io/$PROJECT_ID/$SERVICE_NAME
 
 # Deploy Agent Service
@@ -486,7 +487,7 @@ os.environ["ADK_DEBUG"] = "true"
 
 ### **Scaling Configuration**
 ```yaml
-# cloudrun-service.yaml optimizations
+# cloudrun-agentservice.yaml / cloudrun-mcpserver.yaml optimizations
 spec:
   template:
     metadata:

@@ -10,11 +10,13 @@ PROJECT_ID=${1:-"your-project-id"}
 REGION=${2:-"us-central1"}
 SERVICE_NAME="agent-greeting-service"
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
+DOCKERFILE="Dockerfile.agentservice"
 
 echo "🚀 Deploying Agent Service to Cloud Run"
 echo "Project: $PROJECT_ID"
 echo "Region: $REGION"
 echo "Service: $SERVICE_NAME"
+echo "Dockerfile: $DOCKERFILE"
 echo "----------------------------------------"
 
 # Ensure gcloud is configured
@@ -23,7 +25,7 @@ gcloud config set project $PROJECT_ID
 
 # Build and push container image
 echo "🔨 Building container image..."
-docker build -t $IMAGE_NAME .
+docker build -f $DOCKERFILE -t $IMAGE_NAME .
 
 echo "📤 Pushing image to Container Registry..."
 docker push $IMAGE_NAME

@@ -26,6 +26,9 @@
 # Build and deploy Agent Service
 ./deploy_agent.sh your-project-id us-central1
 
+# Alternative: PowerShell deployment
+.\deploy_agent.ps1 your-project-id us-central1
+
 # Test Agent Service
 python test_agentservice.py
 ```
@@ -34,6 +37,9 @@ python test_agentservice.py
 ```bash
 # Build and deploy MCP Server
 ./deploy_mcpserver.sh your-project-id us-central1
+
+# Alternative: PowerShell deployment
+.\deploy_mcpserver.ps1 your-project-id us-central1
 
 # Test MCP Server
 python test_mcpserver.py
