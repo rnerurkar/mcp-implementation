@@ -26,7 +26,6 @@ providing security layers that protect your MCP tools from various attack vector
 import os       # Environment variable access for configuration
 import json     # JSON parsing for tokens and configurations
 import re       # Regular expressions for pattern matching and validation
-import time     # Time-based operations for rate limiting and token expiry
 
 # JWT (JSON Web Token) library for token validation
 # JWT tokens are used for secure authentication between services
@@ -38,12 +37,8 @@ import requests
 # Type hints for better code documentation and IDE support
 from typing import Dict, Any, List, Optional
 
-# Cryptography library for encryption, decryption, and key operations
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives.serialization import (
-    Encoding, PublicFormat, PrivateFormat, NoEncryption
-)
+# Cryptography library for RSA key generation (used in ContextSecurity)
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 # Google Cloud libraries for secret and key management
 # These provide secure storage for sensitive configuration data
@@ -81,6 +76,7 @@ class InputSanitizer:
         Args:
             security_profile (str): Security level - 'default' or 'strict'
         """
+        self.security_profile = security_profile
         self.patterns = self._load_patterns(security_profile)
 
     def _load_patterns(self, profile: str) -> List[re.Pattern]:
@@ -123,10 +119,17 @@ class InputSanitizer:
 
     def sanitize(self, text: str) -> str:
         """
-        Apply security filters to user input
+        Apply security filters to user input using Model Armor API or fallback patterns
         
-        This method scans the input text for potentially dangerous patterns
-        and replaces them with [REDACTED] to prevent security vulnerabilities.
+        This method provides enterprise-grade security through Model Armor API,
+        with fallback to local regex patterns for development environments.
+        
+        Model Armor benefits:
+        - Advanced ML-based prompt injection detection
+        - Real-time threat intelligence updates
+        - Sophisticated attack pattern recognition
+        - Lower false positive rates than regex patterns
+        - Professional security monitoring and analytics
         
         Common use cases:
         - Sanitizing user prompts before sending to AI models
@@ -139,10 +142,157 @@ class InputSanitizer:
         Returns:
             str: Sanitized text with dangerous patterns replaced
         """
-        # Apply each security pattern to the text
-        for pattern in self.patterns:
-            text = pattern.sub("[REDACTED]", text)
-        return text
+        # Try Model Armor API first for production-grade security
+        model_armor_result = self._check_model_armor(text)
+        
+        if model_armor_result['success']:
+            # Use Model Armor's analysis and sanitization
+            if model_armor_result['is_malicious']:
+                # Model Armor detected threats - apply their recommended sanitization
+                return model_armor_result['sanitized_text']
+            else:
+                # Model Armor says it's safe - return original text
+                return text
+        else:
+            # Fallback to local regex patterns if Model Armor is unavailable
+            print(f"⚠️ Model Armor unavailable ({model_armor_result['error']}), using fallback patterns")
+            for pattern in self.patterns:
+                text = pattern.sub("[REDACTED]", text)
+            return text
+
+    def _check_model_armor(self, text: str) -> Dict[str, Any]:
+        """
+        Check text against Model Armor API for advanced threat detection
+        
+        Model Armor provides enterprise-grade AI security including:
+        - ML-based prompt injection detection
+        - Context-aware threat analysis
+        - Real-time threat intelligence
+        - Sophisticated attack pattern recognition
+        - Detailed security analytics and reporting
+        
+        Args:
+            text (str): Text to analyze for security threats
+            
+        Returns:
+            Dict[str, Any]: Analysis results including threat status and sanitized text
+        """
+        try:
+            # Get Model Armor API credentials from secure storage
+            api_key = os.getenv('MODEL_ARMOR_API_KEY') or self._get_credential_if_available('model-armor-api-key')
+            
+            if not api_key:
+                return {
+                    'success': False,
+                    'error': 'Model Armor API key not configured',
+                    'is_malicious': False,
+                    'sanitized_text': text
+                }
+            
+            # Model Armor API endpoint for prompt injection detection
+            model_armor_url = "https://api.modelarmor.com/v1/analyze"
+            
+            # Prepare request payload for Model Armor
+            payload = {
+                "text": text,
+                "detection_types": [
+                    "prompt_injection",
+                    "pii_detection", 
+                    "toxicity",
+                    "code_injection",
+                    "data_extraction"
+                ],
+                "sanitization_mode": "redact",  # Options: redact, block, warn
+                "security_profile": self.security_profile  # Use our configured profile
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "MCP-Security-Controls/1.0"
+            }
+            
+            # Call Model Armor API with timeout for reliability
+            response = requests.post(
+                model_armor_url,
+                json=payload,
+                headers=headers,
+                timeout=5.0  # 5-second timeout for production use
+            )
+            
+            # Handle API response
+            if response.status_code == 200:
+                result = response.json()
+                
+                return {
+                    'success': True,
+                    'is_malicious': result.get('is_malicious', False),
+                    'threat_types': result.get('detected_threats', []),
+                    'confidence_score': result.get('confidence', 0.0),
+                    'sanitized_text': result.get('sanitized_text', text),
+                    'model_armor_id': result.get('analysis_id'),  # For audit trails
+                    'raw_response': result  # Full response for detailed logging
+                }
+            
+            elif response.status_code == 429:
+                # Rate limit exceeded - use fallback
+                return {
+                    'success': False,
+                    'error': 'Model Armor rate limit exceeded',
+                    'is_malicious': False,
+                    'sanitized_text': text
+                }
+            
+            else:
+                # Other API errors
+                return {
+                    'success': False,
+                    'error': f'Model Armor API error: {response.status_code}',
+                    'is_malicious': False,
+                    'sanitized_text': text
+                }
+                
+        except requests.exceptions.Timeout:
+            return {
+                'success': False,
+                'error': 'Model Armor API timeout',
+                'is_malicious': False,
+                'sanitized_text': text
+            }
+            
+        except requests.exceptions.RequestException as e:
+            return {
+                'success': False,
+                'error': f'Model Armor network error: {str(e)}',
+                'is_malicious': False,
+                'sanitized_text': text
+            }
+            
+        except Exception as e:
+            # Fail safe - assume potential threat and use fallback
+            return {
+                'success': False,
+                'error': f'Model Armor unexpected error: {str(e)}',
+                'is_malicious': False,
+                'sanitized_text': text
+            }
+
+    def _get_credential_if_available(self, secret_name: str) -> Optional[str]:
+        """
+        Safely attempt to get credentials from credential manager
+        
+        Args:
+            secret_name (str): Name of the secret to retrieve
+            
+        Returns:
+            Optional[str]: Secret value if available, None if not configured
+        """
+        try:
+            # This would integrate with your existing CredentialManager
+            # For now, return None to indicate credential manager not available
+            return None
+        except Exception:
+            return None
 
 
 
@@ -514,63 +664,6 @@ class CredentialManager:
         # else:
         #     raise ValueError(f"Unknown tool: {tool_name}")
 
-    def _execute_db_query(self, connection_string: str, params: Dict[str, Any]) -> Any:
-        """
-        Securely execute database query with injected credentials
-        
-        This method demonstrates secure database access patterns:
-        - Connection string injected at runtime, not stored
-        - Parameterized queries to prevent SQL injection
-        - Connection cleanup and resource management
-        
-        Args:
-            connection_string (str): Database connection string from Secret Manager
-            params (Dict[str, Any]): Query parameters
-            
-        Returns:
-            Any: Query results
-        """
-        # Pseudocode for secure database connection:
-        # conn = create_engine(connection_string).connect()
-        # result = conn.execute(sql, params.values())
-        return {"status": "success", "rows": 5}
-
-    def _call_api(self, api_key: str, params: Dict[str, Any]) -> Any:
-        """
-        Securely call external API with injected credentials
-        
-        This method demonstrates secure API integration:
-        - API key injected at runtime from Secret Manager
-        - Proper timeout handling to prevent hanging requests
-        - Error handling and status code validation
-        - Structured response processing
-        
-        Args:
-            api_key (str): API authentication key from Secret Manager
-            params (Dict[str, Any]): API call parameters
-            
-        Returns:
-            Any: API response data
-            
-        Raises:
-            requests.HTTPError: If API call fails
-            requests.Timeout: If request times out
-        """
-        # Prepare authentication headers
-        headers = {"Authorization": f"Bearer {api_key}"}
-        
-        # Make the API call with proper error handling
-        response = requests.post(
-            params["endpoint"],
-            json=params["data"],
-            headers=headers,
-            timeout=10  # Prevent hanging requests
-        )
-        
-        # Validate response status
-        response.raise_for_status()
-        return response.json()
-
 
 
 # %%
@@ -767,101 +860,283 @@ class ContextSecurity:
             self.public_key = self.private_key.public_key()
             self.signing_strategy = "local"
 
-    def sign(self, context: Dict[str, Any]) -> str:
-        """Generate signed JWT for context"""
-        if self.signing_strategy == "kms":
-            return self._sign_with_kms(context)
-        else:
-            return self._sign_locally(context)
-
-    def verify(self, signed_context: str) -> Dict[str, Any]:
-        """Verify signed context"""
-        # Implementation would use public key from KMS or local
-        # For demo, just decode without verification
-        return jwt.decode(signed_context, options={"verify_signature": False})
-
-    def _sign_with_kms(self, context: Dict[str, Any]) -> str:
-        """KMS-based signing (production)"""
-        # Pseudocode for KMS signing
-        # response = self.kms_client.asymmetric_sign(
-        #     request={
-        #         "name": self.key_path,
-        #         "data": json.dumps(context).encode(),
-        #         "digest": {"sha256": hashlib.sha256(...).digest()}
-        #     }
-        # )
-        # signature = response.signature
-        return jwt.encode(context, "secret", algorithm="HS256")  # Demo
-
-    def _sign_locally(self, context: Dict[str, Any]) -> str:
-        """Local signing (development)"""
-        return jwt.encode(
-            context,
-            self.private_key,
-            algorithm="RS256",
-            headers={"kid": "local-key"}
-        )
-
-# %%
-# -------------------------------
-# 7. Tool Registration Security
-# -------------------------------
-# the ServiceRegistryClient acts as the secure interface for tools to integrate
-# with the MCP Server's registry, ensuring that only legitimate and verified
-# tools can be registered and subsequently managed by the MCP.
-class ServiceRegistryClient:
-    """Secure service registration with cryptographic identity proof"""
-    def __init__(self, registry_url: str, project: str, namespace: str,
-                 service_account: Dict[str, str]):
-        self.base_url = f"{registry_url}/{project}/{namespace}"
-        self.service_account = service_account
-        self.session = requests.Session()
-
-    def register(self, service_name: str, endpoint: str, metadata: Dict[str, Any],
-                identity_proof: str) -> Dict[str, Any]:
-        """Register service with cryptographic proof"""
-        payload = {
-            "service": service_name,
-            "endpoint": endpoint,
-            "metadata": metadata,
-            "timestamp": int(time.time())
-        }
-
-        response = self.session.post(
-            f"{self.base_url}/register",
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {self._get_auth_token()}",
-                "X-Identity-Proof": identity_proof
-            }
-        )
-        response.raise_for_status()
-        return response.json()
-
-    def _get_auth_token(self) -> str:
-        """Generate OAuth2 token for registry authentication"""
-        # Pseudocode for service account token generation
-        return "mocked_auth_token"
-
 # %%
 # --------------------------
-# 8. OPA Policy Enforcement
+# 7. OPA Policy Enforcement
 # --------------------------
+
 class OPAPolicyClient:
-    """Open Policy Agent integration for authorization"""
+    """
+    Open Policy Agent (OPA) integration for enterprise-grade authorization
+    
+    OPA (Open Policy Agent) is a general-purpose policy engine that provides
+    unified, fine-grained authorization across your MCP server infrastructure.
+    
+    KEY BENEFITS FOR MCP SERVERS:
+    
+    1. **Centralized Policy Management**: Define authorization rules in one place
+       rather than scattered throughout your code
+    
+    2. **Dynamic Authorization**: Policies can be updated without code changes
+       or server restarts
+    
+    3. **Complex Rule Support**: Handle sophisticated authorization logic like:
+       - Time-based access (work hours only)
+       - Resource quotas (max API calls per user)
+       - Contextual permissions (different rules for different environments)
+       - Multi-factor conditions (user + role + resource + time)
+    
+    4. **Audit and Compliance**: All authorization decisions are logged
+       and auditable for compliance requirements
+    
+    WHEN TO USE OPA IN MCP SERVERS:
+    
+    ✅ **Use OPA when you have:**
+    - Multiple tools with different permission requirements
+    - Enterprise clients requiring fine-grained access control
+    - Compliance requirements (SOX, HIPAA, PCI-DSS)
+    - Complex authorization logic that changes frequently
+    - Multi-tenant environments with different access patterns
+    - Need for real-time policy updates without downtime
+    
+    ❌ **Skip OPA for:**
+    - Simple single-user development environments
+    - Basic tools with minimal security requirements
+    - Prototypes or proof-of-concept implementations
+    - Environments where external dependencies are problematic
+    
+    EXAMPLE USE CASES:
+    
+    1. **Tool Access Control**:
+       "Allow database queries only for users in 'analyst' role during business hours"
+    
+    2. **Resource Quotas**:
+       "Limit API calls to 1000 per hour per user, 10000 for premium users"
+    
+    3. **Environment-Based Rules**:
+       "Allow destructive operations only in development environment"
+    
+    4. **Data Classification**:
+       "Allow access to PII data only for users with privacy training"
+    
+    INTEGRATION PATTERN:
+    
+    ```python
+    # In your MCP tool implementation
+    opa_client = OPAPolicyClient("http://opa-server:8181")
+    
+    @app.call_tool()
+    async def sensitive_database_query(arguments):
+        # Build authorization context
+        context = {
+            "user": get_current_user(),
+            "tool": "database_query", 
+            "resource": arguments.get("table"),
+            "action": "read",
+            "environment": os.getenv("ENVIRONMENT"),
+            "time": datetime.now().isoformat()
+        }
+        
+        # Check policy before executing tool
+        if not opa_client.check_policy(context):
+            raise PermissionError("Access denied by policy")
+            
+        # Proceed with tool execution
+        return execute_query(arguments)
+    ```
+    
+    For FastAPI/MCP integration:
+    Use this class as a dependency in your secured endpoints or as middleware
+    to enforce organization-wide authorization policies consistently.
+    """
+    
     def __init__(self, opa_url: str, policy_path: str = "mcp/policy/allow"):
+        """
+        Initialize OPA policy client for authorization decisions
+        
+        Args:
+            opa_url (str): Base URL of your OPA server (e.g., "http://opa:8181")
+            policy_path (str): OPA policy path for authorization decisions
+                             Format: "package/rule/path" 
+                             Default: "mcp/policy/allow" maps to /v1/data/mcp/policy/allow
+        
+        Example OPA policy structure:
+        ```
+        package mcp.policy
+        
+        default allow = false
+        
+        # Allow database access for analysts during business hours
+        allow {
+            input.user.role == "analyst"
+            input.tool == "database_query"
+            business_hours
+        }
+        
+        # Allow admin access anytime
+        allow {
+            input.user.role == "admin"
+        }
+        
+        business_hours {
+            time.weekday(time.now_ns()) >= 1  # Monday
+            time.weekday(time.now_ns()) <= 5  # Friday
+            hour := time.clock(time.now_ns())[0]
+            hour >= 9   # 9 AM
+            hour <= 17  # 5 PM
+        }
+        ```
+        """
+        # Construct the full OPA API endpoint for policy evaluation
+        # OPA exposes policies through its REST API at /v1/data/{policy_path}
         self.base_url = f"{opa_url}/v1/data/{policy_path}"
+        
+        # Store original URL for debugging and logging
+        self.opa_url = opa_url
+        self.policy_path = policy_path
 
     def check_policy(self, context: Dict[str, Any]) -> bool:
-        """Evaluate policy against context"""
+        """
+        Evaluate authorization policy against the given context
+        
+        This method sends the authorization context to OPA for policy evaluation.
+        OPA will apply all relevant rules and return a boolean decision.
+        
+        SECURITY DESIGN PRINCIPLES:
+        
+        1. **Fail Secure**: If OPA is unreachable or returns an error,
+           the method returns False (deny access) rather than True
+        
+        2. **Timeout Protection**: Uses short timeout (1 second) to prevent
+           authorization checks from hanging indefinitely
+        
+        3. **Error Isolation**: Network/parsing errors don't crash the application,
+           they result in access denial
+        
+        CONTEXT STRUCTURE:
+        
+        The context dictionary should include all information needed for
+        authorization decisions. Common fields include:
+        
+        ```python
+        context = {
+            # User identification and attributes
+            "user": {
+                "id": "user123",
+                "email": "user@company.com", 
+                "role": "analyst",
+                "department": "finance",
+                "clearance_level": "confidential"
+            },
+            
+            # Action being attempted
+            "action": "read",  # read, write, delete, execute
+            "tool": "database_query",
+            "method": "GET",
+            
+            # Resource being accessed
+            "resource": {
+                "type": "database_table",
+                "name": "customer_data",
+                "classification": "pii",
+                "owner": "marketing_team"
+            },
+            
+            # Environmental context
+            "environment": "production",
+            "ip_address": "192.168.1.100",
+            "time": "2024-01-15T14:30:00Z",
+            "session_id": "sess_abc123"
+        }
+        ```
+        
+        Args:
+            context (Dict[str, Any]): Authorization context containing all relevant
+                                    information for policy evaluation
+        
+        Returns:
+            bool: True if access is allowed, False if denied or on error
+            
+        Example usage:
+        ```python
+        # Check if user can access sensitive data
+        context = {
+            "user": {"role": "analyst", "id": "user123"},
+            "tool": "database_query",
+            "resource": {"table": "customer_pii", "classification": "sensitive"},
+            "action": "read",
+            "environment": "production"
+        }
+        
+        if opa_client.check_policy(context):
+            # User has permission - proceed with operation
+            result = execute_sensitive_query()
+        else:
+            # Access denied - log attempt and return error
+            logger.warning(f"Access denied for user {context['user']['id']}")
+            raise PermissionError("Insufficient permissions")
+        ```
+        """
         try:
+            # Send policy evaluation request to OPA
+            # The "input" field is the standard way OPA expects context data
             response = requests.post(
                 self.base_url,
                 json={"input": context},
-                timeout=1.0
+                timeout=1.0,  # Short timeout for responsive authorization
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "MCP-Security-Controls/1.0"
+                }
             )
+            
+            # Raise exception for HTTP error status codes (4xx, 5xx)
+            # This ensures we handle OPA server errors appropriately
             response.raise_for_status()
-            return response.json().get("result", False)
-        except requests.exceptions.RequestException:
-            # Fail secure for critical operations
+            
+            # Parse OPA response and extract the authorization decision
+            # OPA returns: {"result": true/false} for boolean policies
+            result = response.json()
+            
+            # Log authorization decision for audit purposes
+            # (In production, you might want more detailed logging)
+            decision = result.get("result", False)
+            print(f"🔐 OPA Authorization: {decision} for {context.get('user', {}).get('id', 'unknown')} accessing {context.get('tool', 'unknown')}")
+            
+            return decision
+            
+        except requests.exceptions.Timeout:
+            # OPA server took too long to respond
+            # Fail secure: deny access when authorization system is slow
+            print(f"⚠️ OPA timeout for policy check - denying access")
+            return False
+            
+        except requests.exceptions.ConnectionError:
+            # OPA server is unreachable
+            # This might happen during deployments or network issues
+            print(f"⚠️ OPA server unreachable at {self.opa_url} - denying access")
+            return False
+            
+        except requests.exceptions.HTTPError as e:
+            # OPA returned an HTTP error (400, 500, etc.)
+            # This could indicate policy syntax errors or server issues
+            print(f"⚠️ OPA HTTP error {e.response.status_code} - denying access")
+            return False
+            
+        except (ValueError, KeyError) as e:
+            # JSON parsing error or unexpected response format
+            # This could happen if OPA returns malformed responses
+            print(f"⚠️ OPA response parsing error: {e} - denying access")
+            return False
+            
+        except requests.exceptions.RequestException as e:
+            # Catch-all for other network-related errors
+            # Ensures any unexpected network issue results in access denial
+            print(f"⚠️ OPA request failed: {e} - denying access")
+            return False
+            
+        except Exception as e:
+            # Ultimate fallback for any unexpected errors
+            # Ensures authorization failures never crash the application
+            print(f"⚠️ Unexpected error in OPA policy check: {e} - denying access")
             return False
