@@ -247,9 +247,15 @@ async def lifespan(app: FastAPI):
         print("🚀 Starting Agent Service...")
         
         # Initialize MCP client for discovering and connecting to tools
-        # You can configure this with your specific MCP server details
+        # Configure for Google Cloud Run service-to-service authentication
         from base_mcp_client import BaseMCPClient
-        mcp_client = BaseMCPClient()  # Configure as needed
+        
+        mcp_server_url = os.getenv("MCP_SERVER_URL", "https://your-mcp-server-abc123-uc.a.run.app")
+        
+        mcp_client = BaseMCPClient(
+            mcp_url=mcp_server_url,
+            target_audience=mcp_server_url  # For Cloud Run, audience is typically the service URL
+        )
         
         # Create and initialize our agent service with configuration from environment variables
         # This allows deployment-time configuration without code changes

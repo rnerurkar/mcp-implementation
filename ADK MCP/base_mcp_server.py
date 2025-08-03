@@ -7,7 +7,7 @@ while maintaining the flexibility needed for different MCP tool implementations.
 
 Key Security Features:
 - Input sanitization and validation to prevent injection attacks
-- Azure AD token validation for authentication and authorization
+- Google Cloud ID token validation for service-to-service authentication
 - Encrypted context handling using Google Cloud KMS
 - Policy-based access control via Open Policy Agent (OPA)
 - Comprehensive logging and audit trails
@@ -33,14 +33,14 @@ from fastapi import HTTPException     # For proper HTTP error responses
 # Import all security control components
 # These provide comprehensive protection against various attack vectors
 from mcp_security_controls import (
-    InputSanitizer,       # Prevents prompt injection and input-based attacks
-    AzureTokenValidator,  # Validates JWT tokens from Azure AD
-    CredentialManager,    # Securely manages secrets and credentials
-    ContextSanitizer,     # Protects against context poisoning attacks
-    ContextSecurity,      # Provides encryption for sensitive context data
-    OPAPolicyClient,      # Enforces policy-based access control
-    SchemaValidator,      # Validates input schemas and applies security rules
-    SecurityException     # Custom security exception handling
+    InputSanitizer,           # Prevents prompt injection and input-based attacks
+    GoogleCloudTokenValidator, # Validates ID tokens from Google Cloud IAM
+    CredentialManager,        # Securely manages secrets and credentials
+    ContextSanitizer,         # Protects against context poisoning attacks
+    ContextSecurity,          # Provides encryption for sensitive context data
+    OPAPolicyClient,          # Enforces policy-based access control
+    SchemaValidator,          # Validates input schemas and applies security rules
+    SecurityException         # Custom security exception handling
 )
 
 class BaseMCPServer(ABC):
@@ -105,12 +105,11 @@ class BaseMCPServer(ABC):
         # Cloud services initialization with graceful fallback
         # Only initialize if proper credentials and configuration are available
         try:
-            # Azure AD token validator for authentication and authorization
-            self.token_validator = AzureTokenValidator(
-                expected_audience=config.get("azure_audience"),
-                required_scopes=config.get("azure_scopes", []),
-                issuer=config.get("azure_issuer")
-            ) if config.get("azure_audience") else None
+            # Google Cloud ID token validator for service-to-service authentication
+            self.token_validator = GoogleCloudTokenValidator(
+                expected_audience=config.get("cloud_run_audience"),
+                project_id=config.get("gcp_project")
+            ) if config.get("cloud_run_audience") else None
             
             # Google Cloud credential manager for secure secret access
             self.credential_manager = CredentialManager(
@@ -167,7 +166,7 @@ class BaseMCPServer(ABC):
         """
         try:
             # === PHASE 1: AUTHENTICATION & AUTHORIZATION ===
-            # Validate JWT tokens if authentication is configured
+            # Validate Google Cloud ID tokens if authentication is configured
             token_claims = {}
             if self.token_validator and request.get("token"):
                 # Validate token signature, audience, and expiration
@@ -191,7 +190,8 @@ class BaseMCPServer(ABC):
             # Check Open Policy Agent rules if policy engine is available
             if self.opa_client:
                 policy_context = {
-                    "user": token_claims.get("sub", "anonymous"),
+                    "user": token_claims.get("email", "anonymous"),  # Google Cloud uses email
+                    "service_account": token_claims.get("sub", "unknown"),  # Service account ID
                     "tool": request.get("tool_name", "hello"),
                     "params": validated_params
                 }

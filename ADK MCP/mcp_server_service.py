@@ -30,7 +30,7 @@ class MCPServer(BaseMCPServer):
         
         Args:
             config: Dictionary containing security and operational configuration
-                   Including Azure AD settings, GCP project info, security levels, etc.
+                   Including Google Cloud Run settings, GCP project info, security levels, etc.
         """
         # Initialize the secure base server with all security controls
         super().__init__(config)
@@ -375,9 +375,7 @@ def create_app():
     3. Returns a configured FastAPI application
     
     Configuration loaded from environment:
-    - AZURE_AUDIENCE: Expected audience for Azure AD tokens
-    - AZURE_SCOPES: Required OAuth scopes (space-separated)
-    - AZURE_ISSUER: Azure AD token issuer URL
+    - CLOUD_RUN_AUDIENCE: Expected audience for Google Cloud ID tokens
     - GCP_PROJECT: Google Cloud Project ID for services
     - OPA_URL: Open Policy Agent URL for policy decisions
     - KMS_KEY_PATH: Key Management Service path for encryption
@@ -389,9 +387,7 @@ def create_app():
     # Build configuration from environment variables
     # This allows different configs for dev, staging, and production
     config = {
-        "azure_audience": os.getenv("AZURE_AUDIENCE"),
-        "azure_scopes": os.getenv("AZURE_SCOPES", "").split() if os.getenv("AZURE_SCOPES") else [],
-        "azure_issuer": os.getenv("AZURE_ISSUER"),
+        "cloud_run_audience": os.getenv("CLOUD_RUN_AUDIENCE"),
         "gcp_project": os.getenv("GCP_PROJECT"),
         "opa_url": os.getenv("OPA_URL", "http://localhost:8181"),
         "kms_key_path": os.getenv("KMS_KEY_PATH"),
