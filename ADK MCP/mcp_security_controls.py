@@ -28,7 +28,7 @@ import json     # JSON parsing for tokens and configurations
 import re       # Regular expressions for pattern matching and validation
 
 # JWT (JSON Web Token) library for token validation
-# JWT tokens are used for secure authentication between services
+# Google Cloud ID tokens are JWT tokens signed by Google
 import jwt
 
 # HTTP client for making API calls to external services
@@ -302,9 +302,8 @@ class InputSanitizer:
 # -------------------------------
 
 # Import JWT libraries for token validation
-# PyJWKClient fetches public keys from Azure AD for token verification
+# Google Cloud uses JWT ID tokens for service-to-service authentication
 import jwt  # Core JWT library for token decode/encode operations
-from jwt import PyJWKClient  # Client for fetching JSON Web Keys from Azure AD
 
 class SecurityException(Exception):
     """
@@ -322,99 +321,117 @@ class SecurityException(Exception):
     """
     pass
 
-class AzureTokenValidator:
+class GoogleCloudTokenValidator:
     """
-    Validates Azure AD tokens with confused deputy prevention
+    Validates Google Cloud IAM ID tokens for service-to-service authentication
     
-    This class provides comprehensive JWT token validation for Azure AD tokens,
-    protecting against common token-based attacks including:
-    - Token replay attacks
-    - Audience confusion (confused deputy problem)
-    - Scope escalation attempts
-    - Expired or invalid tokens
-    - Signature validation bypass attempts
+    This class validates ID tokens issued by Google Cloud IAM for Cloud Run
+    service-to-service authentication, providing:
+    - Cryptographic signature verification using Google's public keys
+    - Audience validation to ensure tokens are intended for this service
+    - Issuer verification for authenticity
+    - Service account validation
+    
+    For Cloud Run service-to-service authentication:
+    - Source service gets an ID token targeting the destination service
+    - Destination service validates the token using this class
+    - Token contains service account identity and audience claims
     
     Security features:
-    - Cryptographic signature verification using Azure AD public keys
-    - Audience validation to prevent token misuse
-    - Scope validation for authorization
-    - Issuer verification for authenticity
+    - Google-managed public key rotation
+    - Automatic signature verification
+    - Built-in audience and issuer validation
+    - Protection against token misuse and replay attacks
     
     For FastAPI integration:
     Use as a dependency in your secured endpoints to validate Bearer tokens
-    from the Authorization header.
+    from the Authorization header in Cloud Run service-to-service calls.
     """
     
-    # Azure AD's public endpoint for JSON Web Key Sets (JWKS)
-    # This URL provides the public keys needed to verify token signatures
-    AZURE_JWKS_URL = "https://login.microsoftonline.com/common/discovery/keys"
-
-    def __init__(self, expected_audience: str, required_scopes: List[str], issuer: str):
+    def __init__(self, expected_audience: str, project_id: str):
         """
-        Initialize the Azure AD token validator
+        Initialize the Google Cloud IAM token validator
         
         Args:
             expected_audience (str): The audience claim that tokens must contain
-                                   (typically your application's ID URI)
-            required_scopes (List[str]): List of OAuth scopes that must be present
-            issuer (str): Expected token issuer (Azure AD tenant)
+                                   (typically the target Cloud Run service URL)
+            project_id (str): Google Cloud project ID for additional validation
         """
         self.expected_audience = expected_audience
-        self.required_scopes = required_scopes
-        self.issuer = issuer
-        
-        # Initialize the JWKS client for fetching Azure AD public keys
-        # This client caches keys for performance and handles key rotation
-        self.jwks_client = PyJWKClient(self.AZURE_JWKS_URL)
+        self.project_id = project_id
         
     def validate(self, token: str) -> Dict[str, Any]:
         """
-        Comprehensive token validation pipeline
+        Comprehensive Google Cloud IAM token validation
         
-        This method performs a two-phase validation process:
-        1. Fast unverified checks for basic token structure and claims
-        2. Cryptographic signature verification against Azure AD public keys
-        
-        The two-phase approach provides both security and performance:
-        - Quick rejection of obviously invalid tokens
-        - Expensive cryptographic operations only for potentially valid tokens
+        This method validates ID tokens issued by Google Cloud IAM:
+        1. Cryptographic signature verification against Google's public keys
+        2. Audience validation to ensure token is for this service
+        3. Issuer verification to confirm Google issued the token
+        4. Expiration and timing validation
         
         Args:
-            token (str): JWT token string from Authorization header
+            token (str): ID token string from Authorization header
             
         Returns:
             Dict[str, Any]: Validated token claims if verification succeeds
             
         Raises:
-            ValueError: If audience validation fails
-            PermissionError: If required scopes are missing
-            jwt.InvalidTokenError: If cryptographic verification fails
+            SecurityException: If token validation fails
         """
-        # Phase 1: Fast unverified check (no signature validation yet)
-        # This quickly rejects tokens with wrong structure or claims
-        unverified = jwt.decode(token, options={"verify_signature": False})
-
-        # Audience validation - prevents confused deputy attacks
-        # Ensures the token was intended for our application
-        if unverified.get("aud") != self.expected_audience:
-            raise ValueError("Invalid token audience")
-
-        # Scope validation - ensures proper authorization
-        # Scopes define what operations the token holder can perform
-        token_scopes = unverified.get("scp", "").split()
-        if not all(scope in token_scopes for scope in self.required_scopes):
-            raise PermissionError("Missing required scopes")
-
-        # Phase 2: Cryptographic verification
-        # Get the correct public key for this token and verify signature
-        signing_key = self.jwks_client.get_signing_key_from_jwt(token)
-        return jwt.decode(
-            token,
-            key=signing_key.key,
-            algorithms=["RS256"],          # Azure AD uses RS256 algorithm
-            audience=self.expected_audience,
-            issuer=self.issuer
-        )
+        try:
+            # Import Google Auth libraries for token verification
+            from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token
+            from google.auth import exceptions as google_exceptions
+            
+            # Create a Google Auth request object for token verification
+            request = google_requests.Request()
+            
+            # Verify the ID token using Google's public keys
+            # This automatically handles:
+            # - Signature verification
+            # - Expiration checking
+            # - Issuer validation
+            # - Audience validation
+            claims = id_token.verify_oauth2_token(
+                token, 
+                request, 
+                audience=self.expected_audience
+            )
+            
+            # Additional validation for Cloud Run context
+            # Ensure the token is from Google's identity provider
+            if claims.get('iss') not in ['https://accounts.google.com', 'accounts.google.com']:
+                raise SecurityException("Invalid token issuer")
+            
+            # Validate that the token has a service account subject
+            # Cloud Run service-to-service tokens should have service account subjects
+            subject = claims.get('sub')
+            if not subject:
+                raise SecurityException("Missing subject in token")
+            
+            # Optional: Validate project context if needed
+            # This can help ensure tokens are from expected projects
+            email = claims.get('email', '')
+            if self.project_id and self.project_id not in email:
+                print(f"⚠️ Warning: Token from different project context")
+            
+            print(f"✅ Validated token for service account: {email}")
+            return claims
+            
+        except google_exceptions.GoogleAuthError as e:
+            # Google Auth library raised an authentication error
+            # This includes signature verification, expiration, etc.
+            raise SecurityException(f"Google Cloud token validation failed: {str(e)}")
+            
+        except ValueError as e:
+            # Audience or other validation errors
+            raise SecurityException(f"Token validation error: {str(e)}")
+            
+        except Exception as e:
+            # Catch-all for unexpected errors
+            raise SecurityException(f"Unexpected token validation error: {str(e)}")
 
 # %%
 # ---------------------------

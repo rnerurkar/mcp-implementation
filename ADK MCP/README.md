@@ -16,7 +16,7 @@ This project implements a complete MCP workflow that enables:
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   MCP Client    │    │   Agent Service  │    │   MCP Server    │
-│  (ADK Agent)    │◄──►│   (FastAPI)      │◄──►│  (Tool Provider) │
+│  (ADK Agent)    │◄──►│   (FastAPI)      │◄──►│  (Tool Provider)│
 │   Port: 8080    │    │   Port: 8080     │    │   Port: 8000    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
         │                        │                        │
