@@ -266,84 +266,294 @@ curl -X POST "http://localhost:8000/invoke" \
   -d '{"tool": "hello", "parameters": {"name": "TestUser"}}'
 ```
 
-## ☁️ **Cloud Run Deployment**
+## ☁️ **Google Cloud Run Deployment Pipeline**
 
-This project supports deploying both the Agent Service and MCP Server as separate Cloud Run services.
+This project implements a comprehensive 4-tier deployment pipeline for production-ready Google Cloud Run services with secure service-to-service authentication.
 
-### **Agent Service Deployment**
+### **🏗️ Deployment Architecture Overview**
 
-#### **Quick Deployment**
-```bash
-# Make deployment script executable (Linux/macOS)
-chmod +x deploy_agent.sh
-
-# Deploy Agent Service to Cloud Run
-./deploy_agent.sh your-project-id us-central1
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Complete Deployment Pipeline                │
+├─────────────────────────────────────────────────────────────┤
+│ 1. 🐳 Dockerfile.* ──► Build Container Images               │
+│ 2. 🚀 deploy_*.sh ──► Deploy Services to Cloud Run         │
+│ 3. ⚙️  cloudrun-*.yaml ──► Configure Service Specifications │
+│ 4. 🔐 cloud-run-iam-setup.md ──► Configure Authentication  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### **PowerShell Deployment (Windows)**
-```powershell
-# Deploy Agent Service using PowerShell
-.\deploy_agent.ps1 your-project-id us-central1
+### **📋 Deployment Pipeline Components**
+
+#### **1. 🐳 Container Build Configuration**
+
+| File | Purpose | Key Features |
+|------|---------|--------------|
+| `Dockerfile.mcpserver` | MCP Server container | Python 3.11, port 8000, health checks, non-root user |
+| `Dockerfile.agentservice` | Agent Service container | Python 3.11, port 8080, health checks, optimized layers |
+
+**Container Architecture Flow:**
+```
+┌─────────────────────┐    ┌──────────────────────┐
+│ requirements.txt    │───▶│ Dockerfile.mcpserver │
+└─────────────────────┘    └──────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────┐    ┌──────────────────────┐
+│ mcp_server_service  │───▶│ Docker Image Build   │
+│ mcp_security_controls│    └──────────────────────┘
+│ (Python code)       │                │
+└─────────────────────┘                ▼
+                           ┌──────────────────────┐
+                           │ Google Container     │
+                           │ Registry (GCR)       │
+                           └──────────────────────┘
 ```
 
-### **MCP Server Deployment**
+#### **2. 🚀 Automated Deployment Scripts**
 
-#### **Quick Deployment**
+| Script | Platform | Purpose | Automation Level |
+|--------|----------|---------|------------------|
+| `deploy_mcpserver.sh` | Linux/macOS | Full MCP Server deployment | Complete pipeline |
+| `deploy_mcpserver.ps1` | Windows | MCP Server deployment | PowerShell automation |
+| `deploy_agent.sh` | Linux/macOS | Agent Service deployment | Streamlined process |
+| `deploy_agent.ps1` | Windows | Agent Service deployment | Cross-platform support |
+
+**Deployment Script Workflow:**
 ```bash
-# Make deployment script executable (Linux/macOS)
+# deploy_mcpserver.sh execution flow:
+1. 📋 Configure gcloud project
+2. 🔧 Enable Cloud Run & Container Registry APIs  
+3. 👤 Create service account with IAM roles
+4. 🔨 Build Docker image using Dockerfile.mcpserver
+5. 📤 Push image to Google Container Registry
+6. 📝 Template cloudrun-mcpserver.yaml with PROJECT_ID
+7. 🚀 Deploy using: gcloud run services replace
+8. ✅ Output service URL and endpoints
+```
+
+#### **3. ⚙️ Cloud Run Service Configurations**
+
+| YAML File | Service | Configuration Focus |
+|-----------|---------|-------------------|
+| `cloudrun-mcpserver.yaml` | MCP Server | Security, scaling, health probes |
+| `cloudrun-agentservice.yaml` | Agent Service | Performance, AI model settings |
+
+**YAML Configuration Features:**
+
+**MCP Server (cloudrun-mcpserver.yaml):**
+```yaml
+# Production-ready configuration
+annotations:
+  run.googleapis.com/min-scale: "1"        # Keep warm
+  run.googleapis.com/max-scale: "20"       # Scale limit
+  run.googleapis.com/memory: "2Gi"         # Resource allocation
+  run.googleapis.com/execution-environment: gen2
+
+# Security settings
+serviceAccountName: mcp-server-sa@PROJECT_ID.iam.gserviceaccount.com
+env:
+- name: EXPECTED_AUDIENCE
+  value: "https://mcp-server-service-xyz.run.app"
+- name: SECURITY_LEVEL 
+  value: "high"
+
+# Health monitoring
+startupProbe:
+  httpGet:
+    path: /mcp-server/health
+    port: 8000
+```
+
+**Agent Service (cloudrun-agentservice.yaml):**
+```yaml
+# AI-optimized configuration  
+annotations:
+  run.googleapis.com/cpu-throttling: "false"  # No CPU throttling
+  run.googleapis.com/startup-cpu-boost: "true" # Faster startup
+
+env:
+- name: AGENT_MODEL
+  value: "gemini-1.5-flash"
+- name: AGENT_INSTRUCTION
+  value: "You are a friendly greeting agent..."
+
+# Health monitoring
+startupProbe:
+  httpGet:
+    path: /health
+    port: 8080
+```
+
+#### **4. 🔐 IAM Security Configuration**
+
+**`cloud-run-iam-setup.md`** provides the **critical security layer** that other files don't address:
+
+**Security Configuration Flow:**
+```
+┌──────────────────────┐    ┌─────────────────────┐
+│ Service Accounts     │───▶│ IAM Role Assignment │
+│ Created              │    │ & Permissions       │
+└──────────────────────┘    └─────────────────────┘
+          │                            │
+          ▼                            ▼
+┌──────────────────────┐    ┌─────────────────────┐
+│ ID Token Generation  │◄──▶│ Service-to-Service  │
+│ Authentication       │    │ Authorization       │
+└──────────────────────┘    └─────────────────────┘
+```
+
+**Essential IAM Commands:**
+```bash
+# 1. Create service accounts
+gcloud iam service-accounts create mcp-client-sa
+gcloud iam service-accounts create mcp-server-sa
+
+# 2. Grant ID token creation permissions
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:mcp-client-sa@PROJECT.iam.gserviceaccount.com" \
+    --role="roles/iam.serviceAccountTokenCreator"
+
+# 3. Configure service-to-service access
+gcloud run services add-iam-policy-binding mcp-server-service \
+    --member="serviceAccount:mcp-client-sa@PROJECT.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" \
+    --region=$REGION
+```
+
+### **🔗 File Relationships and Data Flow**
+
+```
+requirements.txt
+    │
+    ▼
+Dockerfile.mcpserver ──► Docker Image ──► Container Registry
+    │                                            │
+    ▼                                            ▼
+deploy_mcpserver.sh ────────────────────► gcloud run deploy
+    │                                            │
+    ▼                                            ▼
+cloudrun-mcpserver.yaml ─────────────────► Cloud Run Service
+    │                                            │
+    ▼                                            ▼
+cloud-run-iam-setup.md ──► IAM Configuration ──► Secure Authentication
+```
+
+### **🚀 Production Deployment Workflow**
+
+#### **Step 1: Prerequisites Setup**
+```bash
+# Install required tools
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+docker --version
+
+# Set environment variables
+export PROJECT_ID="your-project-id"
+export REGION="us-central1"
+```
+
+#### **Step 2: IAM Security Configuration (CRITICAL FIRST STEP)**
+```bash
+# Follow commands in cloud-run-iam-setup.md
+# This configures service accounts and permissions
+source cloud-run-iam-setup.md
+```
+
+#### **Step 3: Deploy MCP Server**
+```bash
+# Linux/macOS
 chmod +x deploy_mcpserver.sh
+./deploy_mcpserver.sh $PROJECT_ID $REGION
 
-# Deploy MCP Server to Cloud Run
-./deploy_mcpserver.sh your-project-id us-central1
+# Windows PowerShell
+.\deploy_mcpserver.ps1 $PROJECT_ID $REGION
 ```
 
-#### **PowerShell Deployment (Windows)**
-```powershell
-# Deploy MCP Server using PowerShell
-.\deploy_mcpserver.ps1 your-project-id us-central1
-```
-
-### **Manual Deployment Steps**
-
-#### **1. Agent Service Deployment**
+#### **Step 4: Deploy Agent Service**
 ```bash
-export PROJECT_ID="your-project-id"
-export SERVICE_NAME="agent-greeting-service"
+# Linux/macOS  
+chmod +x deploy_agent.sh
+./deploy_agent.sh $PROJECT_ID $REGION
 
-# Build and push Agent Service
-docker build -f Dockerfile.agentservice -t gcr.io/$PROJECT_ID/$SERVICE_NAME .
-docker push gcr.io/$PROJECT_ID/$SERVICE_NAME
-
-# Deploy Agent Service
-gcloud run deploy $SERVICE_NAME \
-    --image gcr.io/$PROJECT_ID/$SERVICE_NAME \
-    --region us-central1 \
-    --platform managed \
-    --allow-unauthenticated \
-    --memory 2Gi \
-    --cpu 1 \
-    --port 8080
+# Windows PowerShell
+.\deploy_agent.ps1 $PROJECT_ID $REGION
 ```
 
-#### **2. MCP Server Deployment**
+#### **Step 5: Verify Deployment**
 ```bash
-export PROJECT_ID="your-project-id"
-export MCP_SERVICE_NAME="mcp-server-service"
+# Test authentication flow
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences=$SERVER_URL)" \
+     "$SERVER_URL/mcp-server/health"
 
-# Build and push MCP Server
-docker build -f Dockerfile.mcpserver -t gcr.io/$PROJECT_ID/$MCP_SERVICE_NAME .
-docker push gcr.io/$PROJECT_ID/$MCP_SERVICE_NAME
+# Test agent service
+curl -X POST "$AGENT_URL/greet" \
+     -H "Content-Type: application/json" \
+     -d '{"message": "Hello!"}'
+```
 
-# Deploy MCP Server
-gcloud run deploy $MCP_SERVICE_NAME \
-    --image gcr.io/$PROJECT_ID/$MCP_SERVICE_NAME \
-    --region us-central1 \
-    --platform managed \
-    --allow-unauthenticated \
-    --memory 2Gi \
-    --cpu 1 \
-    --port 8000
+### **📊 Deployment Pipeline Benefits**
+
+| Component | Benefit | Production Impact |
+|-----------|---------|------------------|
+| **Dockerfiles** | Consistent environments | Eliminates "works on my machine" |
+| **Deploy scripts** | Automated deployment | Reduces human error, faster releases |
+| **YAML configs** | Infrastructure as code | Version-controlled infrastructure |
+| **IAM setup** | Security by design | Zero-trust architecture |
+
+### **🔧 Environment-Specific Configurations**
+
+#### **Development**
+```bash
+# Local development without IAM complexity
+docker build -f Dockerfile.mcpserver -t mcp-server .
+docker run -p 8000:8000 mcp-server
+```
+
+#### **Staging**
+```bash
+# Deploy with reduced resources
+./deploy_mcpserver.sh staging-project us-central1
+# Modify YAML: min-scale: 0, max-scale: 5
+```
+
+#### **Production**
+```bash
+# Full security and scaling configuration
+./deploy_mcpserver.sh production-project us-central1
+# Use all security features from cloud-run-iam-setup.md
+```
+
+### **🚨 Critical Security Notes**
+
+**⚠️ Without `cloud-run-iam-setup.md`:**
+```
+❌ Services deploy but can't authenticate with each other
+❌ ID token validation fails  
+❌ No secure service-to-service communication
+❌ Potential security vulnerabilities
+```
+
+**✅ With complete pipeline:**
+```
+✅ Proper service account permissions
+✅ ID token-based authentication working
+✅ Secure service-to-service communication  
+✅ Production-ready security configuration
+✅ Monitoring and troubleshooting capabilities
+```
+
+### **📈 Scaling and Performance Optimizations**
+
+The YAML configurations include production optimizations:
+
+```yaml
+# High-performance settings
+run.googleapis.com/cpu: "2"                    # Dedicated CPU
+run.googleapis.com/memory: "4Gi"               # Adequate memory  
+run.googleapis.com/min-scale: "1"              # Reduce cold starts
+run.googleapis.com/startup-cpu-boost: "true"   # Faster initialization
+run.googleapis.com/execution-environment: gen2 # Latest runtime
 ```
 
 ## 🔒 **Security Features**
@@ -547,6 +757,24 @@ result = await agent_service.process_request("Hello!", user_id, session_id)
 - **Test Scripts**: Comprehensive testing in `test_agentservice.py` and `test_mcpserver.py`
 - **Configuration Examples**: Template files in `.env.example`
 - **Deployment Scripts**: Automated deployment in `deploy_agent.sh` and `deploy_mcpserver.sh`
+
+### **🚀 Deployment Pipeline Quick Reference**
+
+| File Type | Files | Purpose | When to Use |
+|-----------|-------|---------|-------------|
+| **🐳 Container** | `Dockerfile.mcpserver`<br>`Dockerfile.agentservice` | Build production images | Every deployment |
+| **🚀 Deployment** | `deploy_mcpserver.sh/.ps1`<br>`deploy_agent.sh/.ps1` | Automated deployment | CI/CD & manual deploys |
+| **⚙️ Configuration** | `cloudrun-mcpserver.yaml`<br>`cloudrun-agentservice.yaml` | Service specifications | Infrastructure changes |
+| **🔐 Security** | `cloud-run-iam-setup.md` | IAM & authentication | Initial setup & security reviews |
+
+**Deployment Command Summary:**
+```bash
+# Complete production deployment (run in order):
+1. source cloud-run-iam-setup.md     # Security setup
+2. ./deploy_mcpserver.sh PROJECT_ID  # Deploy MCP Server  
+3. ./deploy_agent.sh PROJECT_ID       # Deploy Agent Service
+4. curl $SERVICE_URL/health          # Verify deployment
+```
 
 ### **Support and Contributing**
 For questions, issues, or contributions:
