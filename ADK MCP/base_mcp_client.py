@@ -2,15 +2,20 @@
 Base MCP Client Implementation for Google Cloud Service-to-Service Authentication
 
 This module provides a foundational client for connecting to Model Context Protocol (MCP) servers
-using Google Cloud Run service-to-service authentication with ID tokens.
+using Google Cloud Run service-to-service authentication with ID tokens via Google Auth library.
 
 Key Features:
-- Google Cloud ID token authentication for service-to-service communication
-- Automatic token management and refresh from metadata server
+- Google Cloud ID token authentication using Google Auth library exclusively
+- Automatic token management and refresh
 - Secure tool discovery from MCP servers
 - Connection pooling and session management
 - Error handling and retry logic
 - Integration with Google ADK toolsets
+
+Authentication Method:
+- Uses Google Auth library for ID token generation (no metadata server calls)
+- Works across all Google Cloud environments (Cloud Run, GCE, local development)
+- Supports service account authentication and Workload Identity
 """
 
 import time
@@ -59,60 +64,73 @@ class BaseMCPClient:
         Get Google Cloud ID token for service-to-service authentication
         
         This method implements Google Cloud Run service-to-service authentication
-        by fetching an ID token from the metadata server or using the Google Auth library.
+        using ONLY the Google Auth library for ID token generation. This approach
+        works across all Google Cloud environments and provides consistent behavior.
+        
+        ID Token Generation Strategy:
+        - Uses Google Auth library exclusively for ID token generation
+        - No metadata server calls - fail fast if unsuccessful
+        - Works in Cloud Run, GCE, local development with service accounts
         
         Raises:
-            AuthenticationError: If token acquisition fails
+            AuthenticationError: If ID token acquisition fails
         """
+        print(f"🔐 Generating ID token using Google Auth library for audience: {self.target_audience}")
+        
         try:
-            # Try to get ID token from metadata server (Cloud Run environment)
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={self.target_audience}",
-                        headers={"Metadata-Flavor": "Google"},
-                        timeout=5.0
-                    )
-                    response.raise_for_status()
-                    self._id_token = response.text
-                    
-                    # ID tokens typically expire in 1 hour
-                    self._token_expires_at = time.time() + 3600
-                    
-                    print(f"✅ Successfully obtained Google Cloud ID token for audience: {self.target_audience}")
-                    return
-                    
-            except Exception as metadata_error:
-                print(f"⚠️ Metadata server unavailable: {metadata_error}")
-                
-                # Fallback: Use Google Auth library to generate ID token
-                try:
-                    from google.auth.transport.requests import Request
-                    from google.auth import default
-                    from google.oauth2 import id_token_credentials
-                    
-                    # Get default credentials
-                    credentials, project = default()
-                    
-                    # Create ID token credentials
-                    id_creds = id_token_credentials.IDTokenCredentials(
-                        credentials, 
-                        target_audience=self.target_audience
-                    )
-                    
-                    # Refresh to get the token
-                    id_creds.refresh(Request())
-                    self._id_token = id_creds.token
-                    self._token_expires_at = time.time() + 3600
-                    
-                    print(f"✅ Successfully generated Google Cloud ID token using auth library")
-                    return
-                    
-                except Exception as auth_error:
-                    raise AuthenticationError(f"Failed to get ID token: {auth_error}")
-                    
-        except Exception as e:
-            raise AuthenticationError(f"Google Cloud authentication failed: {str(e)}")
+            from google.auth.transport.requests import Request
+            from google.auth import default
+            from google.oauth2 import id_token_credentials
+            
+            # Get default credentials
+            credentials, project = default()
+            if not credentials:
+                raise AuthenticationError("No default credentials found. Ensure you're running in a Google Cloud environment or have GOOGLE_APPLICATION_CREDENTIALS set.")
+            
+            print(f"📋 Using credentials from project: {project}")
+            
+            # Create ID token credentials with target audience
+            id_creds = id_token_credentials.IDTokenCredentials(
+                credentials, 
+                target_audience=self.target_audience
+            )
+            
+            # Refresh to get the token
+            auth_request = Request()
+            id_creds.refresh(auth_request)
+            
+            # Validate the generated token
+            if not id_creds.token:
+                raise AuthenticationError("Google Auth library failed to generate ID token")
+            
+            # Validate token format (JWT should have 3 parts separated by dots)
+            token_parts = id_creds.token.split('.')
+            if len(token_parts) != 3:
+                raise AuthenticationError(f"Invalid ID token format. Expected 3 parts, got {len(token_parts)}")
+            
+            # Store the token and expiration
+            self._id_token = id_creds.token
+            self._token_expires_at = time.time() + 3600  # ID tokens typically expire in 1 hour
+            
+            print(f"✅ Successfully generated ID token using Google Auth library")
+            print(f"   Token length: {len(id_creds.token)} characters")
+            print(f"   Project: {project}")
+            print(f"   Audience: {self.target_audience}")
+            print(f"   Expires at: {time.ctime(self._token_expires_at)}")
+            
+        except ImportError as import_error:
+            error_msg = (
+                f"Google Auth libraries not available: {import_error}. "
+                f"Install with: pip install google-auth google-auth-oauthlib"
+            )
+            raise AuthenticationError(error_msg)
+            
+        except Exception as auth_error:
+            error_msg = (
+                f"Failed to generate ID token using Google Auth library: {auth_error}. "
+                f"Ensure you have proper Google Cloud credentials configured."
+            )
+            raise AuthenticationError(error_msg)
 
     def _is_token_expired(self) -> bool:
         """Check if the current ID token is expired or missing"""
