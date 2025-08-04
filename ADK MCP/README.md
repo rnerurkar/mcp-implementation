@@ -6,7 +6,7 @@ A comprehensive implementation of the Model Context Protocol (MCP) with Google A
 
 This project implements a complete MCP workflow that enables:
 - **Dynamic Tool Discovery**: Agents can discover and use tools from MCP servers
-- **Secure Communication**: OAuth 2.1, Azure AD integration, and OPA policy enforcement
+- **Secure Communication**: Google Cloud Run service-to-service authentication with ID tokens and OPA policy enforcement
 - **Production Deployment**: FastAPI service ready for Google Cloud Run
 - **Agent Orchestration**: Pre-initialized agents with session management
 - **Security Controls**: Input sanitization, context security, and credential management
@@ -92,7 +92,7 @@ ADK MCP/
 - ✅ **API Documentation**: Automatic OpenAPI docs at `/docs`
 
 ### **2. MCP Client**
-- ✅ **OAuth 2.1 Authentication**: Secure client credentials flow
+- ✅ **Google Cloud Authentication**: Secure ID token-based service-to-service authentication
 - ✅ **Tool Discovery**: Automatic detection of available tools
 - ✅ **Connection Management**: Persistent connections with reconnection logic
 - ✅ **Error Handling**: Robust error recovery and logging
@@ -105,7 +105,7 @@ ADK MCP/
 
 ### **4. Security Framework**
 - ✅ **Input Sanitization**: XSS, injection, and malformed input protection
-- ✅ **Azure AD Integration**: Token validation and scope enforcement
+- ✅ **Google Cloud Authentication**: ID token validation and service account authorization
 - ✅ **Schema Validation**: JSON schema validation for all inputs
 - ✅ **Context Encryption**: KMS-based encryption for sensitive data
 
@@ -115,7 +115,7 @@ ADK MCP/
 - Python 3.11+
 - Google Cloud SDK (for deployment)
 - Docker (for containerization)
-- Azure AD app registration (for authentication)
+- Google Cloud Project with proper IAM configuration
 
 ### **1. Local Development Setup**
 
@@ -139,29 +139,61 @@ Create a `.env` file with the following variables:
 # Service Configuration
 HOST=0.0.0.0
 PORT=8080
+
+# Agent Configuration
 AGENT_MODEL=gemini-1.5-flash
 AGENT_NAME=MCPAgent
+AGENT_INSTRUCTION=You are a friendly greeting agent. Welcome users warmly and help them with their requests. Be conversational, helpful, and use the available tools when appropriate.
 
 # Google Cloud Configuration
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+GCP_PROJECT=your-project-id
 
-# Azure AD Configuration
-AZURE_AUDIENCE=your-app-audience
-AZURE_ISSUER=https://login.microsoftonline.com/your-tenant-id/v2.0
-AZURE_SCOPES=api://your-app-id/.default
+# Google Cloud Run Authentication
+TARGET_AUDIENCE=https://your-mcp-server-service.run.app
+EXPECTED_AUDIENCE=https://your-mcp-server-service.run.app
+CLOUD_RUN_AUDIENCE=https://your-mcp-server-service.run.app
 
 # MCP Configuration
 MCP_URL=http://localhost:8000
-MCP_CLIENT_ID=your-client-id
-MCP_CLIENT_SECRET=your-client-secret
-MCP_TOKEN_URL=https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token
+MCP_SERVER_URL=https://your-mcp-server-service.run.app
+MCP_CLIENT_SERVICE_ACCOUNT=mcp-client-sa@your-project.iam.gserviceaccount.com
+MCP_SERVER_SERVICE_ACCOUNT=mcp-server-sa@your-project.iam.gserviceaccount.com
 
 # Security Configuration
 OPA_URL=http://localhost:8181
 KMS_KEY_PATH=projects/your-project/locations/global/keyRings/your-ring/cryptoKeys/your-key
 SECURITY_LEVEL=standard
+MODEL_ARMOR_API_KEY=your-model-armor-api-key
+
+# Environment and Deployment
+ENVIRONMENT=development
+LOG_LEVEL=info
+
+# Testing Configuration (optional - for running tests)
+AGENT_SERVICE_URL=http://localhost:8080
+MCP_SERVER_URL=http://localhost:8000
 ```
+
+**Environment Variable Descriptions:**
+
+| Variable | Purpose | Required | Default |
+|----------|---------|----------|---------|
+| `HOST` | Service bind address | No | `0.0.0.0` |
+| `PORT` | Service port number | No | `8080` |
+| `AGENT_MODEL` | LLM model to use | No | `gemini-1.5-flash` |
+| `AGENT_NAME` | Display name for agent | No | `MCPAgent` |
+| `AGENT_INSTRUCTION` | Agent behavior prompt | No | Default greeting agent |
+| `GOOGLE_CLOUD_PROJECT` | GCP project ID | Yes | - |
+| `GCP_PROJECT` | GCP project ID (alias) | Yes | - |
+| `CLOUD_RUN_AUDIENCE` | Expected audience for ID tokens | Yes | - |
+| `MCP_SERVER_URL` | MCP server endpoint URL | Yes | - |
+| `OPA_URL` | Open Policy Agent server URL | No | `http://localhost:8181` |
+| `KMS_KEY_PATH` | Google Cloud KMS key path | No | - |
+| `SECURITY_LEVEL` | Security enforcement level | No | `standard` |
+| `MODEL_ARMOR_API_KEY` | Model Armor API key for advanced security | No | - |
+| `ENVIRONMENT` | Deployment environment | No | `development` |
 
 ### **3. Running the Services**
 
@@ -565,10 +597,10 @@ run.googleapis.com/execution-environment: gen2 # Latest runtime
 - File path traversal protection
 
 ### **2. Authentication & Authorization**
-- OAuth 2.1 client credentials flow
-- Azure AD token validation
-- Scope-based access control
-- JWT token verification
+- Google Cloud Run service-to-service authentication
+- ID token validation and audience verification
+- Service account-based access control
+- JWT token verification with Google's public keys
 
 ### **3. Policy Enforcement**
 - Open Policy Agent (OPA) integration
@@ -646,8 +678,8 @@ mcp_clients = [
 #### **1. Agent Initialization Failures**
 ```python
 # Check MCP client configuration
-print("MCP URL:", os.getenv("MCP_URL"))
-print("Client ID:", os.getenv("MCP_CLIENT_ID"))
+print("MCP URL:", os.getenv("MCP_SERVER_URL"))
+print("Target Audience:", os.getenv("TARGET_AUDIENCE"))
 
 # Verify tool discovery
 tools, toolset = await mcp_client.get_toolset()
@@ -656,14 +688,13 @@ print(f"Discovered tools: {[tool.name for tool in tools]}")
 
 #### **2. Authentication Errors**
 ```python
-# Validate Azure AD configuration
-print("Azure Audience:", os.getenv("AZURE_AUDIENCE"))
-print("Azure Issuer:", os.getenv("AZURE_ISSUER"))
+# Validate Google Cloud authentication configuration
+print("Target Audience:", os.getenv("TARGET_AUDIENCE"))
+print("Expected Audience:", os.getenv("EXPECTED_AUDIENCE"))
 
 # Test token validation
-token_validator = AzureTokenValidator(
-    expected_audience=azure_audience,
-    issuer=azure_issuer
+token_validator = GoogleCloudTokenValidator(
+    expected_audience=expected_audience
 )
 ```
 
@@ -750,7 +781,7 @@ result = await agent_service.process_request("Hello!", user_id, session_id)
 - [Google ADK Documentation](https://cloud.google.com/adk)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Google Cloud Run Documentation](https://cloud.google.com/run/docs)
-- [Azure AD Authentication](https://docs.microsoft.com/en-us/azure/active-directory/)
+- [Google Cloud Authentication](https://cloud.google.com/docs/authentication)
 
 ### **Project Resources**
 - **API Documentation**: Available at `/docs` when service is running
