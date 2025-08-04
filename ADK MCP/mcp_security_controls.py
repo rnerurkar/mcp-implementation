@@ -323,29 +323,36 @@ class SecurityException(Exception):
 
 class GoogleCloudTokenValidator:
     """
-    Validates Google Cloud IAM ID tokens for service-to-service authentication
+    Validates Google Cloud ID tokens for service-to-service authentication
     
-    This class validates ID tokens issued by Google Cloud IAM for Cloud Run
-    service-to-service authentication, providing:
+    This class EXCLUSIVELY validates ID tokens issued by Google Cloud IAM for Cloud Run
+    service-to-service authentication. NO fallback to access tokens is provided.
+    
+    ID Token Security Features:
     - Cryptographic signature verification using Google's public keys
     - Audience validation to ensure tokens are intended for this service
     - Issuer verification for authenticity
     - Service account validation
+    - Comprehensive claims validation
     
     For Cloud Run service-to-service authentication:
-    - Source service gets an ID token targeting the destination service
-    - Destination service validates the token using this class
-    - Token contains service account identity and audience claims
+    - Source service generates an ID token targeting the destination service
+    - Destination service validates the token using this class (validate method ONLY)
+    - Token contains verified service account identity and audience claims
     
-    Security features:
+    Security benefits over access tokens:
     - Google-managed public key rotation
     - Automatic signature verification
     - Built-in audience and issuer validation
     - Protection against token misuse and replay attacks
+    - Zero-trust security model support
     
     For FastAPI integration:
     Use as a dependency in your secured endpoints to validate Bearer tokens
     from the Authorization header in Cloud Run service-to-service calls.
+    
+    IMPORTANT: This class only supports ID token validation. If you need access token
+    validation, you must implement it separately or use a different validator.
     """
     
     def __init__(self, expected_audience: str, project_id: str):
@@ -362,27 +369,60 @@ class GoogleCloudTokenValidator:
         
     def validate(self, token: str) -> Dict[str, Any]:
         """
-        Comprehensive Google Cloud IAM token validation
+        Validate Google Cloud ID tokens for Cloud Run service-to-service authentication
         
-        This method validates ID tokens issued by Google Cloud IAM:
-        1. Cryptographic signature verification against Google's public keys
-        2. Audience validation to ensure token is for this service
-        3. Issuer verification to confirm Google issued the token
-        4. Expiration and timing validation
+        This method validates ID tokens issued by Google Cloud IAM for Cloud Run
+        service-to-service authentication. ID tokens are JWTs cryptographically
+        signed by Google that contain verified service account identity.
+        
+        WHY USE ID TOKENS FOR SERVICE-TO-SERVICE CALLS:
+        
+        1. **Cryptographic Verification**: ID tokens are JWTs signed by Google's
+           private keys, providing cryptographic proof of authenticity
+        
+        2. **Service Account Identity**: Contains verified service account email
+           and subject, allowing precise authorization decisions
+        
+        3. **Audience Protection**: Tokens are bound to specific target services,
+           preventing token misuse across different services
+        
+        4. **No Shared Secrets**: No service account keys required in Cloud Run -
+           uses Workload Identity for automatic credential management
+        
+        5. **Zero Trust**: Each request carries cryptographic proof of identity,
+           supporting zero-trust security models
+        
+        AUTHENTICATION FLOW:
+        1. Client Cloud Run service requests ID token from metadata server
+        2. Metadata server returns JWT ID token signed by Google
+        3. Client includes token in Authorization header
+        4. Server validates token signature against Google's public keys
+        5. Server extracts service account identity for authorization
         
         Args:
             token (str): ID token string from Authorization header
             
         Returns:
-            Dict[str, Any]: Validated token claims if verification succeeds
+            Dict[str, Any]: Validated token claims including service account info
             
         Raises:
             SecurityException: If token validation fails
+            
+        Example token claims returned:
+        {
+            "iss": "https://accounts.google.com",
+            "aud": "https://mcp-server-xyz-uc.a.run.app",
+            "sub": "113834471573829384733",
+            "email": "mcp-client@project.iam.gserviceaccount.com",
+            "email_verified": True,
+            "iat": 1641234567,
+            "exp": 1641238167
+        }
         """
         try:
-            # Import Google Auth libraries for token verification
+            # Import Google Auth libraries for ID token verification
             from google.auth.transport import requests as google_requests
-            from google.oauth2 import id_token
+            from google.oauth2 import id_token as google_id_token
             from google.auth import exceptions as google_exceptions
             
             # Create a Google Auth request object for token verification
@@ -390,48 +430,81 @@ class GoogleCloudTokenValidator:
             
             # Verify the ID token using Google's public keys
             # This automatically handles:
-            # - Signature verification
-            # - Expiration checking
-            # - Issuer validation
-            # - Audience validation
-            claims = id_token.verify_oauth2_token(
+            # - Signature verification against Google's rotating public keys
+            # - Expiration checking (exp claim)
+            # - Issuer validation (iss claim)
+            # - Audience validation (aud claim)
+            # - Not before validation (nbf claim if present)
+            claims = google_id_token.verify_oauth2_token(
                 token, 
                 request, 
                 audience=self.expected_audience
             )
             
-            # Additional validation for Cloud Run context
-            # Ensure the token is from Google's identity provider
-            if claims.get('iss') not in ['https://accounts.google.com', 'accounts.google.com']:
-                raise SecurityException("Invalid token issuer")
+            # Additional validation for Cloud Run service-to-service context
             
-            # Validate that the token has a service account subject
+            # 1. Ensure the token is from Google's identity provider
+            valid_issuers = ['https://accounts.google.com', 'accounts.google.com']
+            if claims.get('iss') not in valid_issuers:
+                raise SecurityException(f"Invalid token issuer: {claims.get('iss')}")
+            
+            # 2. Validate that the token has a service account subject
             # Cloud Run service-to-service tokens should have service account subjects
             subject = claims.get('sub')
             if not subject:
                 raise SecurityException("Missing subject in token")
             
-            # Optional: Validate project context if needed
-            # This can help ensure tokens are from expected projects
+            # 3. Validate service account email format
             email = claims.get('email', '')
+            if not email.endswith('.gserviceaccount.com'):
+                raise SecurityException(f"Token not from service account: {email}")
+            
+            # 4. Ensure email is verified by Google
+            if not claims.get('email_verified', False):
+                raise SecurityException("Service account email not verified")
+            
+            # 5. Optional: Validate project context if needed
             if self.project_id and self.project_id not in email:
                 print(f"⚠️ Warning: Token from different project context")
             
-            print(f"✅ Validated token for service account: {email}")
+            # 6. Validate token timing
+            import time
+            current_time = int(time.time())
+            
+            # Check if token is not yet valid (nbf - not before)
+            not_before = claims.get('nbf')
+            if not_before and current_time < not_before:
+                raise SecurityException("Token not yet valid")
+            
+            # Check if token has expired (additional check beyond library)
+            expires_at = claims.get('exp')
+            if expires_at and current_time >= expires_at:
+                raise SecurityException("Token has expired")
+            
+            # Log successful validation for audit purposes
+            print(f"✅ Validated ID token for service account: {email}")
+            print(f"   Subject: {subject}")
+            print(f"   Audience: {claims.get('aud')}")
+            print(f"   Expires: {expires_at}")
+            
             return claims
             
         except google_exceptions.GoogleAuthError as e:
             # Google Auth library raised an authentication error
-            # This includes signature verification, expiration, etc.
-            raise SecurityException(f"Google Cloud token validation failed: {str(e)}")
+            # This includes signature verification, expiration, audience validation, etc.
+            raise SecurityException(f"Google Cloud ID token validation failed: {str(e)}")
             
         except ValueError as e:
-            # Audience or other validation errors
-            raise SecurityException(f"Token validation error: {str(e)}")
+            # Audience or other validation errors from the library
+            raise SecurityException(f"ID token validation error: {str(e)}")
+            
+        except ImportError as e:
+            # Google Auth libraries not available
+            raise SecurityException(f"Google Auth libraries not available: {str(e)}")
             
         except Exception as e:
             # Catch-all for unexpected errors
-            raise SecurityException(f"Unexpected token validation error: {str(e)}")
+            raise SecurityException(f"Unexpected ID token validation error: {str(e)}")
 
 # %%
 # ---------------------------
