@@ -49,7 +49,7 @@ class BaseMCPServer(ABC):
     
     This class provides a complete security framework for MCP servers including:
     - Multi-layer input validation and sanitization
-    - Authentication and authorization via Azure AD
+    - Authentication and authorization via Google Cloud Run service-to-service authentication
     - Secure credential management using Google Cloud
     - Policy-based access control
     - Encrypted context handling
@@ -85,9 +85,9 @@ class BaseMCPServer(ABC):
         
         Args:
             config (Dict[str, Any]): Configuration dictionary containing:
-                - azure_audience: Expected audience for Azure AD tokens
-                - azure_scopes: Required OAuth scopes for authorization
-                - azure_issuer: Azure AD token issuer URL
+                - expected_audience: Expected audience for Google Cloud ID tokens
+                - cloud_run_audience: Cloud Run service audience for authentication
+                - target_audience: Target service audience for ID token validation
                 - gcp_project: Google Cloud project ID for services
                 - security_level: Security level (standard, strict, etc.)
                 - input_sanitizer_profile: Input sanitization level
@@ -297,19 +297,19 @@ class BaseMCPServer(ABC):
     @abstractmethod
     def get_expected_audience(self) -> str:
         """
-        Return the expected audience for Azure AD token validation
+        Return the expected audience for Google Cloud ID token validation
         
         This method should return the audience claim that must be present
-        in Azure AD JWT tokens. The audience identifies the intended
+        in Google Cloud ID tokens. The audience identifies the intended
         recipient of the token and prevents token misuse.
         
-        Typically this is your application's ID URI in Azure AD.
+        Typically this is the URL of your Cloud Run service.
         
         Returns:
             str: Expected audience value for token validation
             
         Example:
-            "api://your-application-id"
+            "https://your-service-xyz.run.app"
         """
         pass
 

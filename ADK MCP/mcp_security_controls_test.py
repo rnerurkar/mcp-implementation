@@ -352,7 +352,7 @@ class TestAzureTokenValidator(unittest.TestCase):
         ]
         
         # Configure mock JWKS client to return mock signing key
-        # This simulates Azure AD's public key infrastructure
+        # This simulates Google Cloud's public key infrastructure
         mock_signing_key = Mock()
         mock_signing_key.key = "mock-key"  # Mock cryptographic key
         mock_jwks_client.return_value.get_signing_key_from_jwt.return_value = mock_signing_key
