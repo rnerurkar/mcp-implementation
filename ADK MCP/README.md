@@ -139,19 +139,25 @@ Create a `.env` file with the following variables:
 # Service Configuration
 HOST=0.0.0.0
 PORT=8080
+
+# Agent Configuration
 AGENT_MODEL=gemini-1.5-flash
 AGENT_NAME=MCPAgent
+AGENT_INSTRUCTION=You are a friendly greeting agent. Welcome users warmly and help them with their requests. Be conversational, helpful, and use the available tools when appropriate.
 
 # Google Cloud Configuration
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+GCP_PROJECT=your-project-id
 
 # Google Cloud Run Authentication
 TARGET_AUDIENCE=https://your-mcp-server-service.run.app
 EXPECTED_AUDIENCE=https://your-mcp-server-service.run.app
+CLOUD_RUN_AUDIENCE=https://your-mcp-server-service.run.app
 
 # MCP Configuration
 MCP_URL=http://localhost:8000
+MCP_SERVER_URL=https://your-mcp-server-service.run.app
 MCP_CLIENT_SERVICE_ACCOUNT=mcp-client-sa@your-project.iam.gserviceaccount.com
 MCP_SERVER_SERVICE_ACCOUNT=mcp-server-sa@your-project.iam.gserviceaccount.com
 
@@ -159,7 +165,35 @@ MCP_SERVER_SERVICE_ACCOUNT=mcp-server-sa@your-project.iam.gserviceaccount.com
 OPA_URL=http://localhost:8181
 KMS_KEY_PATH=projects/your-project/locations/global/keyRings/your-ring/cryptoKeys/your-key
 SECURITY_LEVEL=standard
+MODEL_ARMOR_API_KEY=your-model-armor-api-key
+
+# Environment and Deployment
+ENVIRONMENT=development
+LOG_LEVEL=info
+
+# Testing Configuration (optional - for running tests)
+AGENT_SERVICE_URL=http://localhost:8080
+MCP_SERVER_URL=http://localhost:8000
 ```
+
+**Environment Variable Descriptions:**
+
+| Variable | Purpose | Required | Default |
+|----------|---------|----------|---------|
+| `HOST` | Service bind address | No | `0.0.0.0` |
+| `PORT` | Service port number | No | `8080` |
+| `AGENT_MODEL` | LLM model to use | No | `gemini-1.5-flash` |
+| `AGENT_NAME` | Display name for agent | No | `MCPAgent` |
+| `AGENT_INSTRUCTION` | Agent behavior prompt | No | Default greeting agent |
+| `GOOGLE_CLOUD_PROJECT` | GCP project ID | Yes | - |
+| `GCP_PROJECT` | GCP project ID (alias) | Yes | - |
+| `CLOUD_RUN_AUDIENCE` | Expected audience for ID tokens | Yes | - |
+| `MCP_SERVER_URL` | MCP server endpoint URL | Yes | - |
+| `OPA_URL` | Open Policy Agent server URL | No | `http://localhost:8181` |
+| `KMS_KEY_PATH` | Google Cloud KMS key path | No | - |
+| `SECURITY_LEVEL` | Security enforcement level | No | `standard` |
+| `MODEL_ARMOR_API_KEY` | Model Armor API key for advanced security | No | - |
+| `ENVIRONMENT` | Deployment environment | No | `development` |
 
 ### **3. Running the Services**
 
@@ -644,8 +678,8 @@ mcp_clients = [
 #### **1. Agent Initialization Failures**
 ```python
 # Check MCP client configuration
-print("MCP URL:", os.getenv("MCP_URL"))
-print("Client ID:", os.getenv("MCP_CLIENT_ID"))
+print("MCP URL:", os.getenv("MCP_SERVER_URL"))
+print("Target Audience:", os.getenv("TARGET_AUDIENCE"))
 
 # Verify tool discovery
 tools, toolset = await mcp_client.get_toolset()
