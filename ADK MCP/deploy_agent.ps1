@@ -62,6 +62,6 @@ Write-Host ""
 Write-Host "📋 Next Steps:" -ForegroundColor Yellow
 Write-Host "1. Test the deployment with: python test_agentservice.py"
 Write-Host "2. Update MCP_URL in agent configuration to connect to MCP Server"
-Write-Host "3. Configure Azure AD authentication (if required)"
+Write-Host "3. Configure Google Cloud Run service-to-service authentication with IAM roles (if required)"
 Write-Host "4. Set up monitoring and alerting"
 Write-Host "5. Try the interactive API documentation at: $SERVICE_URL/docs"

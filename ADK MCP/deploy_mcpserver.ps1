@@ -81,7 +81,7 @@ Remove-Item -Path cloudrun-mcpserver-deploy.yaml -Force -ErrorAction SilentlyCon
 Write-Host ""
 Write-Host "📋 Next Steps:" -ForegroundColor Yellow
 Write-Host "1. Update your MCP client configuration to use: $SERVICE_URL/mcp-server"
-Write-Host "2. Configure OAuth 2.1 authentication with Azure AD"
+Write-Host "2. Configure Google Cloud Run service-to-service authentication with IAM roles and ID tokens"
 Write-Host "3. Set up OPA (Open Policy Agent) for policy enforcement"
 Write-Host "4. Configure Google Cloud KMS for encryption (if needed)"
 Write-Host "5. Test the deployment with: python test_mcpserver.py"

@@ -5,7 +5,7 @@ This module provides comprehensive security controls for Model Context Protocol 
 implementing industry best practices for:
 
 - Input sanitization and prompt injection prevention
-- JWT token validation and Azure AD integration
+- JWT token validation and Google Cloud service-to-service authentication
 - Encryption and key management using Google Cloud KMS
 - Rate limiting and access control
 - Security policy enforcement via Open Policy Agent (OPA)
@@ -297,9 +297,9 @@ class InputSanitizer:
 
 
 # %%
-# -------------------------------
-# 2. Token Validation (Azure AD)
-# -------------------------------
+# -------------------------------------------
+# 2. Token Validation (Google Cloud ID Tokens)
+# -------------------------------------------
 
 # Import JWT libraries for token validation
 # Google Cloud uses JWT ID tokens for service-to-service authentication

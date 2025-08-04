@@ -124,21 +124,21 @@ class MCPServer(BaseMCPServer):
 
     def get_expected_audience(self) -> str:
         """
-        Get the expected audience for Azure AD token validation
+        Get the expected audience for Google Cloud ID token validation
         
         This method returns the audience claim that should be present in
-        Azure AD JWT tokens. The audience identifies the intended recipient
+        Google Cloud ID tokens. The audience identifies the intended recipient
         of the token and helps prevent token misuse.
         
-        In Azure AD:
-        - Audience is typically the Application ID URI of your application
+        In Google Cloud Run service-to-service authentication:
+        - Audience is typically the URL of the target Cloud Run service
         - It's used to verify that tokens were meant for your service
-        - Prevents tokens from other applications being used maliciously
+        - Prevents tokens from other services being used maliciously
         
         Returns:
             str: The expected audience value from configuration
         """
-        # Return the expected audience for Azure AD token validation
+        # Return the expected audience for Google Cloud ID token validation
         return self.config["azure_audience"]
 
     def validate_authorization(self, request_payload: dict):

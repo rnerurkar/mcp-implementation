@@ -68,7 +68,7 @@ MCP_URL=https://mcp-server-service-[hash]-uc.a.run.app/mcp-server
 ## Security
 
 Both services support:
-- Azure AD authentication
+- Google Cloud Run service-to-service authentication with IAM roles and ID tokens
 - Google Cloud KMS encryption
 - OPA policy enforcement
 - Input sanitization

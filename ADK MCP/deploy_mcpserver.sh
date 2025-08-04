@@ -97,7 +97,7 @@ rm -f cloudrun-mcpserver-deploy.yaml
 echo ""
 echo "📋 Next Steps:"
 echo "1. Update your MCP client configuration to use: $SERVICE_URL/mcp-server"
-echo "2. Configure OAuth 2.1 authentication with Azure AD"
+echo "2. Configure Google Cloud Run service-to-service authentication with IAM roles and ID tokens"
 echo "3. Set up OPA (Open Policy Agent) for policy enforcement"
 echo "4. Configure Google Cloud KMS for encryption (if needed)"
 echo "5. Test the deployment with: curl $SERVICE_URL/mcp-server/health"
