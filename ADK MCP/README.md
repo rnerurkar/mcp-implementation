@@ -6,7 +6,7 @@ A comprehensive implementation of the Model Context Protocol (MCP) with Google A
 
 This project implements a complete MCP workflow that enables:
 - **Dynamic Tool Discovery**: Agents can discover and use tools from MCP servers
-- **Secure Communication**: OAuth 2.1, Azure AD integration, and OPA policy enforcement
+- **Secure Communication**: Google Cloud Run service-to-service authentication with ID tokens and OPA policy enforcement
 - **Production Deployment**: FastAPI service ready for Google Cloud Run
 - **Agent Orchestration**: Pre-initialized agents with session management
 - **Security Controls**: Input sanitization, context security, and credential management
@@ -92,7 +92,7 @@ ADK MCP/
 - ✅ **API Documentation**: Automatic OpenAPI docs at `/docs`
 
 ### **2. MCP Client**
-- ✅ **OAuth 2.1 Authentication**: Secure client credentials flow
+- ✅ **Google Cloud Authentication**: Secure ID token-based service-to-service authentication
 - ✅ **Tool Discovery**: Automatic detection of available tools
 - ✅ **Connection Management**: Persistent connections with reconnection logic
 - ✅ **Error Handling**: Robust error recovery and logging
@@ -105,7 +105,7 @@ ADK MCP/
 
 ### **4. Security Framework**
 - ✅ **Input Sanitization**: XSS, injection, and malformed input protection
-- ✅ **Azure AD Integration**: Token validation and scope enforcement
+- ✅ **Google Cloud Authentication**: ID token validation and service account authorization
 - ✅ **Schema Validation**: JSON schema validation for all inputs
 - ✅ **Context Encryption**: KMS-based encryption for sensitive data
 
@@ -115,7 +115,7 @@ ADK MCP/
 - Python 3.11+
 - Google Cloud SDK (for deployment)
 - Docker (for containerization)
-- Azure AD app registration (for authentication)
+- Google Cloud Project with proper IAM configuration
 
 ### **1. Local Development Setup**
 
@@ -146,16 +146,14 @@ AGENT_NAME=MCPAgent
 GOOGLE_CLOUD_PROJECT=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
 
-# Azure AD Configuration
-AZURE_AUDIENCE=your-app-audience
-AZURE_ISSUER=https://login.microsoftonline.com/your-tenant-id/v2.0
-AZURE_SCOPES=api://your-app-id/.default
+# Google Cloud Run Authentication
+TARGET_AUDIENCE=https://your-mcp-server-service.run.app
+EXPECTED_AUDIENCE=https://your-mcp-server-service.run.app
 
 # MCP Configuration
 MCP_URL=http://localhost:8000
-MCP_CLIENT_ID=your-client-id
-MCP_CLIENT_SECRET=your-client-secret
-MCP_TOKEN_URL=https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token
+MCP_CLIENT_SERVICE_ACCOUNT=mcp-client-sa@your-project.iam.gserviceaccount.com
+MCP_SERVER_SERVICE_ACCOUNT=mcp-server-sa@your-project.iam.gserviceaccount.com
 
 # Security Configuration
 OPA_URL=http://localhost:8181
@@ -565,10 +563,10 @@ run.googleapis.com/execution-environment: gen2 # Latest runtime
 - File path traversal protection
 
 ### **2. Authentication & Authorization**
-- OAuth 2.1 client credentials flow
-- Azure AD token validation
-- Scope-based access control
-- JWT token verification
+- Google Cloud Run service-to-service authentication
+- ID token validation and audience verification
+- Service account-based access control
+- JWT token verification with Google's public keys
 
 ### **3. Policy Enforcement**
 - Open Policy Agent (OPA) integration
@@ -656,14 +654,13 @@ print(f"Discovered tools: {[tool.name for tool in tools]}")
 
 #### **2. Authentication Errors**
 ```python
-# Validate Azure AD configuration
-print("Azure Audience:", os.getenv("AZURE_AUDIENCE"))
-print("Azure Issuer:", os.getenv("AZURE_ISSUER"))
+# Validate Google Cloud authentication configuration
+print("Target Audience:", os.getenv("TARGET_AUDIENCE"))
+print("Expected Audience:", os.getenv("EXPECTED_AUDIENCE"))
 
 # Test token validation
-token_validator = AzureTokenValidator(
-    expected_audience=azure_audience,
-    issuer=azure_issuer
+token_validator = GoogleCloudTokenValidator(
+    expected_audience=expected_audience
 )
 ```
 
@@ -750,7 +747,7 @@ result = await agent_service.process_request("Hello!", user_id, session_id)
 - [Google ADK Documentation](https://cloud.google.com/adk)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Google Cloud Run Documentation](https://cloud.google.com/run/docs)
-- [Azure AD Authentication](https://docs.microsoft.com/en-us/azure/active-directory/)
+- [Google Cloud Authentication](https://cloud.google.com/docs/authentication)
 
 ### **Project Resources**
 - **API Documentation**: Available at `/docs` when service is running
