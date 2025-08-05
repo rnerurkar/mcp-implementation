@@ -40,7 +40,13 @@ from mcp_security_controls import (
     ContextSecurity,          # Provides encryption for sensitive context data
     OPAPolicyClient,          # Enforces policy-based access control
     SchemaValidator,          # Validates input schemas and applies security rules
-    SecurityException         # Custom security exception handling
+    SecurityException,        # Custom security exception handling
+    # Zero-Trust Security Controls
+    InstallerSecurityValidator, # Prevents malicious installer distribution
+    ServerNameRegistry,       # Enforces unique server naming and prevents impersonation
+    RemoteServerAuthenticator, # Validates remote server identity and capabilities
+    ToolExposureController,   # Controls which tools are exposed via MCP server
+    SemanticMappingValidator  # Verifies tool metadata aligns with intended use
 )
 
 class BaseMCPServer(ABC):
@@ -133,6 +139,52 @@ class BaseMCPServer(ABC):
         self.opa_client = OPAPolicyClient(
             opa_url=config.get("opa_url", "http://localhost:8181")
         )
+        
+        # Zero-Trust Security Controls
+        # These implement advanced security measures for production MCP deployments
+        try:
+            # Installer security validator for supply chain protection
+            self.installer_validator = InstallerSecurityValidator(
+                trusted_registries=config.get("trusted_registries", [
+                    "https://registry.npmjs.org", "https://pypi.org", "https://github.com"
+                ]),
+                signature_keys=config.get("installer_signature_keys", {})
+            )
+            
+            # Server name registry for preventing impersonation
+            self.server_registry = ServerNameRegistry(
+                registry_backend=config.get("registry_backend", "memory"),
+                namespace_separator=config.get("namespace_separator", "::")
+            )
+            
+            # Remote server authenticator for secure communication
+            self.remote_authenticator = RemoteServerAuthenticator(
+                trusted_ca_certs=config.get("trusted_ca_certs", []),
+                handshake_timeout=config.get("handshake_timeout", 30)
+            )
+            
+            # Tool exposure controller for capability management
+            self.tool_controller = ToolExposureController(
+                policy_file=config.get("tool_policy_file"),
+                default_policy=config.get("default_tool_policy", "deny")
+            )
+            
+            # Semantic mapping validator for tool metadata verification
+            self.semantic_validator = SemanticMappingValidator(
+                semantic_models=config.get("semantic_models", {})
+            )
+            
+            print("✅ Zero-Trust security controls initialized successfully")
+            
+        except Exception as e:
+            # Graceful degradation - log warning but continue operation
+            print(f"⚠️ Warning: Some zero-trust security controls not available: {e}")
+            # Set None values for graceful handling
+            self.installer_validator = None
+            self.server_registry = None
+            self.remote_authenticator = None
+            self.tool_controller = None
+            self.semantic_validator = None
 
     def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -198,7 +250,34 @@ class BaseMCPServer(ABC):
                 if not self.opa_client.check_policy(policy_context):
                     raise PermissionError("OPA policy violation.")
 
-            # === PHASE 5: SECURE TOOL EXECUTION ===
+            # === PHASE 5: ZERO-TRUST SECURITY VALIDATION ===
+            # Advanced security controls for production deployment
+            if hasattr(self, 'tool_controller') and self.tool_controller:
+                # Validate tool exposure permissions
+                if not self.tool_controller.validate_tool_exposure(
+                    request.get("tool_name", "hello"), 
+                    token_claims.get("email", "anonymous")
+                ):
+                    raise PermissionError("Tool exposure validation failed.")
+            
+            if hasattr(self, 'server_registry') and self.server_registry:
+                # Verify server identity to prevent impersonation
+                server_id = token_claims.get("sub", f"unknown-{request.get('client_id', 'anonymous')}")
+                if not self.server_registry.verify_server_identity(
+                    server_id, 
+                    request.get("tool_name", "hello")
+                ):
+                    raise PermissionError("Server identity verification failed.")
+            
+            if hasattr(self, 'semantic_validator') and self.semantic_validator:
+                # Validate semantic mapping for tool metadata
+                if not self.semantic_validator.validate_tool_semantics(
+                    request.get("tool_name", "hello"), 
+                    validated_params
+                ):
+                    raise ValueError("Semantic mapping validation failed.")
+
+            # === PHASE 6: SECURE TOOL EXECUTION ===
             # Inject credentials securely and execute the tool
             credentials = {}
             if self.credential_manager:
@@ -209,12 +288,12 @@ class BaseMCPServer(ABC):
             # Execute the tool with validated parameters and secure credentials
             result = self.fetch_data(validated_params, credentials)
 
-            # === PHASE 6: CONTEXT BUILDING ===
+            # === PHASE 7: CONTEXT BUILDING ===
             # Build execution context for the response
             context = self.build_context(result)
 
-            # === PHASE 7: RESPONSE SANITIZATION & SIGNING ===
-            # === PHASE 7: RESPONSE SANITIZATION & SIGNING ===
+            # === PHASE 8: RESPONSE SANITIZATION & SIGNING ===
+            # === PHASE 8: RESPONSE SANITIZATION & SIGNING ===
             # Sanitize response context to prevent data leakage
             sanitized_context = self.context_sanitizer.sanitize(context)
             
@@ -392,3 +471,115 @@ class BaseMCPServer(ABC):
             }
         """
         pass
+
+    # === ZERO-TRUST SECURITY MANAGEMENT METHODS ===
+    
+    def get_security_status(self) -> Dict[str, Any]:
+        """
+        Get comprehensive status of all zero-trust security controls
+        
+        Returns:
+            Dict containing status of each security control component
+        """
+        from datetime import datetime
+        
+        status = {
+            "timestamp": datetime.now().isoformat(),
+            "security_level": "zero-trust" if all([
+                getattr(self, 'installer_validator', None),
+                getattr(self, 'server_registry', None), 
+                getattr(self, 'remote_authenticator', None),
+                getattr(self, 'tool_controller', None),
+                getattr(self, 'semantic_validator', None)
+            ]) else "standard",
+            "controls": {
+                "installer_security": {
+                    "enabled": hasattr(self, 'installer_validator') and self.installer_validator is not None,
+                    "status": "active" if getattr(self, 'installer_validator', None) else "disabled"
+                },
+                "server_registry": {
+                    "enabled": hasattr(self, 'server_registry') and self.server_registry is not None,
+                    "status": "active" if getattr(self, 'server_registry', None) else "disabled"
+                },
+                "remote_authentication": {
+                    "enabled": hasattr(self, 'remote_authenticator') and self.remote_authenticator is not None,
+                    "status": "active" if getattr(self, 'remote_authenticator', None) else "disabled"
+                },
+                "tool_exposure_control": {
+                    "enabled": hasattr(self, 'tool_controller') and self.tool_controller is not None,
+                    "status": "active" if getattr(self, 'tool_controller', None) else "disabled"
+                },
+                "semantic_validation": {
+                    "enabled": hasattr(self, 'semantic_validator') and self.semantic_validator is not None,
+                    "status": "active" if getattr(self, 'semantic_validator', None) else "disabled"
+                }
+            }
+        }
+        return status
+    
+    def validate_security_configuration(self) -> Dict[str, Any]:
+        """
+        Validate that all security controls are properly configured
+        
+        Returns:
+            Dict containing validation results and recommendations
+        """
+        validation_results = {
+            "overall_status": "secure",
+            "warnings": [],
+            "errors": [],
+            "recommendations": []
+        }
+        
+        # Check installer security
+        if not getattr(self, 'installer_validator', None):
+            validation_results["warnings"].append(
+                "Installer security validator not configured - supply chain attacks possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure trusted registries and signature keys for installer validation"
+            )
+        
+        # Check server registry
+        if not getattr(self, 'server_registry', None):
+            validation_results["warnings"].append(
+                "Server name registry not configured - server impersonation possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure server registry to prevent name collision attacks"
+            )
+        
+        # Check remote authentication
+        if not getattr(self, 'remote_authenticator', None):
+            validation_results["warnings"].append(
+                "Remote server authenticator not configured - MITM attacks possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure trusted CA certificates for remote server authentication"
+            )
+        
+        # Check tool exposure control
+        if not getattr(self, 'tool_controller', None):
+            validation_results["warnings"].append(
+                "Tool exposure controller not configured - unauthorized tool access possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure tool exposure policies to control capability access"
+            )
+        
+        # Check semantic validation
+        if not getattr(self, 'semantic_validator', None):
+            validation_results["warnings"].append(
+                "Semantic mapping validator not configured - tool metadata attacks possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure semantic models for tool metadata validation"
+            )
+        
+        # Determine overall status
+        if validation_results["errors"]:
+            validation_results["overall_status"] = "critical"
+        elif len(validation_results["warnings"]) > 2:
+            validation_results["overall_status"] = "warning"
+            
+        return validation_results
