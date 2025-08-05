@@ -48,6 +48,7 @@ from mcp_security_controls import (
     ContextSanitizer,            # Class for context poisoning prevention
     ContextSecurity,             # Class for context signing and verification
     OPAPolicyClient,             # Class for policy enforcement
+    ToolExposureController,      # Class for tool exposure management
     SecurityException            # Custom exception class for security errors
 )
 
@@ -250,7 +251,7 @@ class TestGoogleCloudTokenValidator(unittest.TestCase):
     UNITTEST CONCEPTS DEMONSTRATED:
     - Complex object initialization with parameters
     - Exception testing with context managers
-    - Mock patching of external libraries (jwt.decode)
+    - Mock patching of external libraries (google.oauth2.id_token.verify_oauth2_token)
     - assertIn for checking error message content
     - Testing security-critical validation logic
     """
@@ -280,34 +281,32 @@ class TestGoogleCloudTokenValidator(unittest.TestCase):
         self.assertEqual(self.validator.expected_audience, "test-audience")
         self.assertEqual(self.validator.project_id, "test-project")
     
-    @patch('jwt.decode')
-    def test_audience_validation_failure(self, mock_decode):
+    @patch('google.oauth2.id_token.verify_oauth2_token')
+    def test_audience_validation_failure(self, mock_verify):
         """
         Test that invalid audience raises ValueError
         
         UNITTEST CONCEPTS DEMONSTRATED:
-        - @patch decorator to mock external library (jwt.decode)
+        - @patch decorator to mock external library (google.oauth2.id_token.verify_oauth2_token)
         - assertRaises with context manager to capture exception details
         - assertIn to check that error messages contain expected text
         - Testing security validation failure scenarios
         """
-        # Configure mock to return token with wrong audience
-        mock_decode.return_value = {
-            "aud": "wrong-audience",  # Incorrect audience value
-            "iss": "https://accounts.google.com"  # Google issuer
-        }
+        # Configure mock to raise ValueError for wrong audience
+        mock_verify.side_effect = ValueError("Token audience verification failed")
         
-        # Test that ValueError is raised for invalid audience
+        # Test that SecurityException is raised for invalid audience
         # Using context manager syntax to capture exception details
-        with self.assertRaises(ValueError) as context:
-            self.validator.validate("fake.jwt.token")
+        with self.assertRaises(SecurityException) as context:
+            # Use a properly formatted JWT token (header.payload.signature)
+            self.validator.validate("eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJ3cm9uZy1hdWRpZW5jZSJ9.signature")
         
         # Verify that error message contains expected text
         # This ensures the exception gives meaningful feedback
-        self.assertIn("Invalid token audience", str(context.exception))
+        self.assertIn("ID token validation error", str(context.exception))
     
-    @patch('jwt.decode')
-    def test_issuer_validation_failure(self, mock_decode):
+    @patch('google.oauth2.id_token.verify_oauth2_token')
+    def test_issuer_validation_failure(self, mock_verify):
         """
         Test that invalid issuer raises ValueError
         
@@ -315,57 +314,52 @@ class TestGoogleCloudTokenValidator(unittest.TestCase):
         - Tests what happens when token has invalid issuer
         - Different exception types for different security failures
         """
-        # Configure mock to return token with wrong issuer
-        mock_decode.return_value = {
+        # Configure mock to return token with wrong issuer, then validate
+        mock_verify.return_value = {
             "aud": "test-audience",     # Correct audience
-            "iss": "https://evil.com"   # Wrong issuer
+            "iss": "https://evil.com",   # Wrong issuer
+            "sub": "123456789",
+            "email": "test@project.gserviceaccount.com",
+            "email_verified": True,
+            "exp": 9999999999,  # Future expiration
+            "iat": 1234567890
         }
         
-        # Test that ValueError is raised for invalid issuer
-        with self.assertRaises(ValueError) as context:
-            self.validator.validate("fake.jwt.token")
+        # Test that SecurityException is raised for invalid issuer
+        with self.assertRaises(SecurityException) as context:
+            # Use a properly formatted JWT token
+            self.validator.validate("eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2V2aWwuY29tIn0.signature")
         
         # Verify that error message contains expected text about issuer
         self.assertIn("Invalid token issuer", str(context.exception))
     
-    @patch('jwt.decode')
-    @patch('mcp_security_controls.PyJWKClient')
-    def test_successful_validation(self, mock_jwks_client, mock_decode):
+    @patch('google.oauth2.id_token.verify_oauth2_token')
+    def test_successful_validation(self, mock_verify):
         """
         Test successful token validation
         
         UNITTEST CONCEPTS DEMONSTRATED:
-        - Multiple @patch decorators stacked
-        - side_effect to return different values on multiple calls
-        - Mock configuration for complex validation flow
+        - Mock patching of Google Cloud token validation
         - Testing the "happy path" - when everything works correctly
+        - Simulating successful JWT validation flow
         """
-        # Configure mock to simulate successful JWT validation process
-        # JWT validation typically involves two decode operations:
-        # 1. Unverified decode to check basic claims
-        # 2. Verified decode using public key to confirm authenticity
-        mock_decode.side_effect = [
-            {"aud": "test-audience", "iss": "https://accounts.google.com"},  # First call: unverified decode
-            {"aud": "test-audience", "iss": "https://accounts.google.com", "sub": "user123"}  # Second call: verified decode
-        ]
+        # Configure mock to simulate successful token validation
+        mock_verify.return_value = {
+            "aud": "test-audience",
+            "iss": "https://accounts.google.com",
+            "sub": "user123",
+            "email": "test@project.gserviceaccount.com",
+            "email_verified": True,
+            "exp": 9999999999,  # Future expiration
+            "iat": 1234567890
+        }
         
-        # Configure mock JWKS client to return mock signing key
-        # This simulates Google Cloud's public key infrastructure
-        mock_signing_key = Mock()
-        mock_signing_key.key = "mock-key"  # Mock cryptographic key
-        mock_jwks_client.return_value.get_signing_key_from_jwt.return_value = mock_signing_key
+        # Call the method under test
+        result = self.validator.validate("eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJ0ZXN0LWF1ZGllbmNlIiwiaXNzIjoiaHR0cHM6Ly9hY2NvdW50cy5nb29nbGUuY29tIn0.signature")
         
-        # Perform the actual validation test
-        # patch.object allows us to replace a specific attribute/method of an object
-        with patch.object(self.validator, 'jwks_client') as mock_client:
-            mock_client.get_signing_key_from_jwt.return_value = mock_signing_key
-            
-            # Call the method under test
-            result = self.validator.validate("mock.jwt.token")
-            
-            # Verify that the decoded token data is returned correctly
-            self.assertEqual(result["aud"], "test-audience")
-            self.assertEqual(result["sub"], "user123")
+        # Verify that the decoded token data is returned correctly
+        self.assertEqual(result["aud"], "test-audience")
+        self.assertEqual(result["sub"], "user123")
 
 
 class TestSchemaValidator(unittest.TestCase):
@@ -638,12 +632,21 @@ class TestOPAPolicyClient(unittest.TestCase):
     @patch('mcp_security_controls.requests.post')
     def test_policy_check_allow(self, mock_post):
         """Test policy check that allows access"""
+        # Set up the mock response explicitly
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.raise_for_status.return_value = None  # No exception
         mock_response.json.return_value = {"result": True}
+        
+        # Configure the mock to return our response
         mock_post.return_value = mock_response
         
-        context = {"user": "test", "action": "read"}
+        # Use proper context format - user should be a dict with id
+        context = {
+            "user": {"id": "test_user", "role": "analyst"}, 
+            "action": "read",
+            "tool": "database_query"
+        }
         result = self.opa_client.check_policy(context)
         
         self.assertTrue(result)
@@ -654,10 +657,16 @@ class TestOPAPolicyClient(unittest.TestCase):
         """Test policy check that denies access"""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"result": False}
+        mock_response.json = Mock(return_value={"result": False})
+        mock_response.raise_for_status = Mock()  # Don't raise any exceptions
         mock_post.return_value = mock_response
         
-        context = {"user": "test", "action": "admin"}
+        # Use proper context format - user should be a dict with id
+        context = {
+            "user": {"id": "test_user", "role": "analyst"}, 
+            "action": "admin",
+            "tool": "admin_tool"
+        }
         result = self.opa_client.check_policy(context)
         
         self.assertFalse(result)
@@ -859,24 +868,109 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
         """Test ToolExposureController for capability management"""
         from mcp_security_controls import ToolExposureController
         
-        controller = ToolExposureController(default_policy="deny")
+        # Test controller without policy file (default behavior)
+        controller_default = ToolExposureController(default_policy="deny")
         
         # Test tool approval
-        approval_result = controller.approve_tool_exposure("test_tool", {
+        approval_result = controller_default.approve_tool_exposure("test_tool", {
             "name": "test_tool",
             "description": "Test tool for security validation",
             "parameters": {"test_param": {"type": "string"}},
             "capabilities": ["read"]
-        }, {"approved_by": "test@example.com", "approved_at": "2024-01-01"})
+        }, "test@example.com")
         
         # Should return success
         self.assertTrue(approval_result)
         
         # Verify tool is in approved list
-        approved_tools = controller.get_approved_tools()
+        approved_tools = controller_default.get_approved_tools()
         self.assertIn("test_tool", approved_tools)
         
-        print("✅ ToolExposureController: Tool capability management configured")
+        print("✅ ToolExposureController: Basic tool capability management configured")
+    
+    def test_tool_exposure_controller_with_policy_file(self):
+        """Test ToolExposureController with policy file"""
+        import os
+        from mcp_security_controls import ToolExposureController
+        
+        # Get the policy file path
+        policy_file_path = os.path.join(os.path.dirname(__file__), "tool_exposure_policy.json")
+        
+        # Verify policy file exists
+        self.assertTrue(os.path.exists(policy_file_path), f"Policy file not found: {policy_file_path}")
+        
+        # Test controller with policy file
+        controller = ToolExposureController(
+            policy_file=policy_file_path,
+            default_policy="deny"
+        )
+        
+        # Test that approved tools from policy file are loaded
+        approved_tools = controller.get_approved_tools()
+        
+        # Verify tools from policy file are loaded
+        expected_tools = ["hello_world", "database_query", "file_reader"]
+        for tool_name in expected_tools:
+            self.assertIn(tool_name, approved_tools, f"Tool '{tool_name}' not found in approved tools")
+            
+            # Verify tool definition structure
+            tool_info = approved_tools[tool_name]
+            self.assertIn("definition", tool_info)
+            self.assertIn("approved_by", tool_info)
+            self.assertIn("approved_at", tool_info)
+            self.assertIn("risk_level", tool_info)
+        
+        # Test validation of approved tools
+        test_contexts = [
+            {
+                "user_id": "test_user",
+                "authenticated": True,
+                "environment": "development"
+            },
+            {
+                "user_id": "analyst@company.com", 
+                "authenticated": True,
+                "environment": "production"
+            }
+        ]
+        
+        for context in test_contexts:
+            # Test hello_world tool (should be allowed for everyone)
+            hello_result = controller.validate_tool_exposure("hello_world", context)
+            self.assertTrue(hello_result, f"hello_world tool should be allowed for context: {context}")
+            
+            # Test database_query tool (requires authentication)
+            db_result = controller.validate_tool_exposure("database_query", context)
+            if context["authenticated"]:
+                # Should be allowed for authenticated users
+                self.assertTrue(db_result, f"database_query should be allowed for authenticated user: {context}")
+            
+            # Test unknown tool (should be denied by default policy)
+            unknown_result = controller.validate_tool_exposure("unknown_tool", context)
+            self.assertFalse(unknown_result, f"unknown_tool should be denied for context: {context}")
+        
+        # Test tool policies are loaded correctly
+        self.assertIn("hello_world", controller.tool_policies)
+        self.assertIn("database_query", controller.tool_policies)
+        self.assertIn("file_reader", controller.tool_policies)
+        
+        # Verify specific policy settings
+        hello_policy = controller.tool_policies["hello_world"]
+        self.assertTrue(hello_policy["exposure_allowed"])
+        self.assertEqual(hello_policy["rate_limit"], 100)
+        self.assertFalse(hello_policy["auth_required"])
+        self.assertTrue(hello_policy["audit_required"])
+        
+        db_policy = controller.tool_policies["database_query"]
+        self.assertTrue(db_policy["exposure_allowed"])
+        self.assertEqual(db_policy["rate_limit"], 10)
+        self.assertTrue(db_policy["auth_required"])
+        self.assertTrue(db_policy["audit_required"])
+        
+        print("✅ ToolExposureController: Policy file loaded and validated successfully")
+        print(f"   - Loaded {len(approved_tools)} approved tools from policy file")
+        print(f"   - Validated tool exposure for multiple contexts")
+        print(f"   - Verified policy settings for rate limiting and authentication")
     
     def test_semantic_mapping_validator(self):
         """Test SemanticMappingValidator for tool metadata verification"""
