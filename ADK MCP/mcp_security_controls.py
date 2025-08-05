@@ -1996,7 +1996,24 @@ class ToolExposureController:
             with open(policy_file, 'r') as f:
                 policies = json.load(f)
                 self.tool_policies.update(policies.get("tool_policies", {}))
-                self.approved_tools.update(policies.get("approved_tools", {}))
+                
+                # Load approved tools and convert string dates to datetime objects
+                approved_tools = policies.get("approved_tools", {})
+                for tool_name, tool_data in approved_tools.items():
+                    # Convert string dates to datetime objects if needed
+                    if isinstance(tool_data.get("approved_at"), str):
+                        try:
+                            from datetime import datetime
+                            tool_data["approved_at"] = datetime.fromisoformat(
+                                tool_data["approved_at"].replace('Z', '+00:00')
+                            )
+                        except (ValueError, ImportError):
+                            # Fallback to current time if parsing fails
+                            tool_data["approved_at"] = datetime.utcnow()
+                
+                self.approved_tools.update(approved_tools)
+                print(f"✅ Loaded {len(approved_tools)} approved tools and {len(self.tool_policies)} policies from {policy_file}")
+                
         except Exception as e:
             print(f"⚠️ Failed to load tool policies: {e}")
 

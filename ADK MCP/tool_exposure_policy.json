@@ -1,0 +1,190 @@
+{
+  "policy_metadata": {
+    "version": "1.0",
+    "created_at": "2025-08-05T10:00:00Z",
+    "created_by": "security-admin@company.com",
+    "description": "MCP Server Tool Exposure Policy - Test Environment",
+    "last_updated": "2025-08-05T10:00:00Z"
+  },
+  
+  "default_policy": "deny",
+  
+  "approved_tools": {
+    "hello_world": {
+      "tool_definition": {
+        "name": "hello_world",
+        "description": "Simple greeting tool that returns a friendly message",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the person to greet",
+              "maxLength": 50
+            }
+          },
+          "required": ["name"]
+        }
+      },
+      "approved_by": "security-admin@company.com",
+      "approved_at": "2025-08-05T10:00:00Z",
+      "security_analysis": {
+        "risk_level": "low",
+        "risks": [],
+        "recommended_rate_limit": 100
+      },
+      "approval_token": "abc123def456ghi789",
+      "status": "approved"
+    },
+    
+    "database_query": {
+      "tool_definition": {
+        "name": "database_query",
+        "description": "Execute read-only database queries for business intelligence",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "SQL SELECT query to execute",
+              "pattern": "^SELECT\\s+.*",
+              "maxLength": 1000
+            },
+            "database": {
+              "type": "string",
+              "description": "Target database name",
+              "enum": ["analytics", "reporting", "public_data"]
+            }
+          },
+          "required": ["query", "database"]
+        }
+      },
+      "approved_by": "data-admin@company.com",
+      "approved_at": "2025-08-05T10:30:00Z",
+      "security_analysis": {
+        "risk_level": "medium",
+        "risks": ["Potential sensitive operation: database"],
+        "recommended_rate_limit": 10
+      },
+      "approval_token": "xyz789abc123def456",
+      "status": "approved"
+    },
+    
+    "file_reader": {
+      "tool_definition": {
+        "name": "file_reader",
+        "description": "Read contents of approved data files for analysis",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to the file to read",
+              "pattern": "^/data/(public|reports)/.*\\.(txt|csv|json)$"
+            },
+            "encoding": {
+              "type": "string",
+              "description": "File encoding",
+              "enum": ["utf-8", "ascii"],
+              "default": "utf-8"
+            }
+          },
+          "required": ["file_path"]
+        }
+      },
+      "approved_by": "security-admin@company.com",
+      "approved_at": "2025-08-05T11:00:00Z",
+      "security_analysis": {
+        "risk_level": "medium",
+        "risks": ["Potential sensitive operation: file_system"],
+        "recommended_rate_limit": 20
+      },
+      "approval_token": "def456ghi789jkl012",
+      "status": "approved"
+    }
+  },
+  
+  "tool_policies": {
+    "hello_world": {
+      "exposure_allowed": true,
+      "rate_limit": 100,
+      "auth_required": false,
+      "audit_required": true,
+      "allowed_environments": ["development", "staging", "production"],
+      "allowed_users": ["*"],
+      "allowed_roles": ["*"],
+      "time_restrictions": null
+    },
+    
+    "database_query": {
+      "exposure_allowed": true,
+      "rate_limit": 10,
+      "auth_required": true,
+      "audit_required": true,
+      "allowed_environments": ["staging", "production"],
+      "allowed_users": ["analyst@company.com", "data-scientist@company.com"],
+      "allowed_roles": ["analyst", "data_scientist", "admin"],
+      "time_restrictions": {
+        "business_hours_only": true,
+        "timezone": "UTC",
+        "allowed_hours": {
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "allowed_days": ["monday", "tuesday", "wednesday", "thursday", "friday"]
+      },
+      "additional_validation": {
+        "sql_whitelist": ["SELECT", "WHERE", "GROUP BY", "ORDER BY", "LIMIT"],
+        "sql_blacklist": ["DROP", "DELETE", "UPDATE", "INSERT", "CREATE", "ALTER"],
+        "max_query_length": 1000
+      }
+    },
+    
+    "file_reader": {
+      "exposure_allowed": true,
+      "rate_limit": 20,
+      "auth_required": true,
+      "audit_required": true,
+      "allowed_environments": ["production"],
+      "allowed_users": ["data-analyst@company.com"],
+      "allowed_roles": ["analyst", "admin"],
+      "time_restrictions": null,
+      "additional_validation": {
+        "allowed_paths": ["/data/public/", "/data/reports/"],
+        "allowed_extensions": [".txt", ".csv", ".json"],
+        "max_file_size": 10485760
+      }
+    }
+  },
+  
+  "global_policies": {
+    "default_rate_limit": 50,
+    "max_concurrent_requests": 10,
+    "audit_all_requests": true,
+    "require_auth_for_sensitive": true,
+    "sensitive_keywords": [
+      "password", "secret", "credential", "token", "key",
+      "admin", "root", "sudo", "exec", "eval", "shell"
+    ],
+    "blocked_patterns": [
+      "eval\\s*\\(",
+      "exec\\s*\\(",
+      "__import__\\s*\\(",
+      "subprocess\\.",
+      "os\\.system"
+    ]
+  },
+  
+  "emergency_policies": {
+    "lockdown_mode": false,
+    "emergency_contacts": [
+      "security-team@company.com",
+      "on-call-engineer@company.com"
+    ],
+    "incident_response": {
+      "auto_disable_on_anomaly": true,
+      "notification_threshold": 10,
+      "cooldown_period_minutes": 15
+    }
+  }
+}
