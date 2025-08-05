@@ -1,10 +1,11 @@
-# MCP Implementation Deployment Architecture
+# MCP Zero-Trust Security Architecture Deployment Guide
 
-## Service Deployment Overview
+## Service Deployment Overview with Zero-Trust Security
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Google Cloud Run                            │
+│              🔒 Zero-Trust Security Architecture 🔒            │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────┐     ┌─────────────────────┐           │
 │  │   Agent Service     │     │    MCP Server       │           │
@@ -13,10 +14,34 @@
 │  │ • Port: 8080        │     │ • Port: 8000        │           │
 │  │ • /greet endpoint   │     │ • /mcp-server/*     │           │
 │  │ • Session mgmt      │     │ • /invoke endpoint  │           │
-│  │ • Pre-init agents   │     │ • Security controls │           │
-│  │                     │     │ • OAuth 2.1 auth   │           │
+│  │ • Pre-init agents   │     │ • 12 Security Ctrls │           │
+│  │ • Security Pipeline │     │ • Zero-Trust Auth   │           │
 │  └─────────────────────┘     └─────────────────────┘           │
+│                                                                 │
+│  🔒 Zero-Trust Security Controls (12 Total):                   │
+│  ├─ Core Controls: Input/Context/Auth/Schema/Creds/Policy      │
+│  └─ Advanced: Installer/Server/Remote/Tool/Semantic           │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+## Zero-Trust Security Configuration
+
+Before deployment, ensure all security controls are properly configured:
+
+### Required Environment Variables
+```bash
+# Core security configuration
+SECURITY_LEVEL=zero-trust
+CLOUD_RUN_AUDIENCE=your-service-audience
+GCP_PROJECT=your-project-id
+
+# Zero-trust specific configuration
+TRUSTED_REGISTRIES=https://registry.npmjs.org,https://pypi.org,https://github.com
+INSTALLER_SIGNATURE_KEYS={"npm":"key1","pypi":"key2"}
+REGISTRY_BACKEND=memory
+TRUSTED_CA_CERTS=["ca-cert-1","ca-cert-2"]
+DEFAULT_TOOL_POLICY=deny
+SEMANTIC_MODELS={"model1":"config1"}
 ```
 
 ## Deployment Commands

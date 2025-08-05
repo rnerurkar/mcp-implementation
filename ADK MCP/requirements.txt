@@ -1,9 +1,10 @@
-# MCP Implementation Requirements
+# MCP Zero-Trust Security Architecture Requirements
 # Complete dependency list for the Model Context Protocol (MCP) implementation
-# with Google ADK integration and FastAPI service
+# with Google ADK integration, FastAPI service, and comprehensive zero-trust security
 
 # Core MCP and Google ADK
-google-adk==1.1.1
+google-adk>=1.8.0
+google-cloud-aiplatform[agent-engines]>=1.95.1
 fastmcp==2.5.1
 google-genai==0.8.1
 
@@ -24,7 +25,7 @@ google-auth-httplib2>=0.1.0
 google-cloud-secret-manager==2.24.0
 google-cloud-kms==3.5.1
 
-# Security and Token Handling
+# Security and Token Handling (Zero-Trust Architecture)
 PyJWT==2.10.1
 python-jose[cryptography]>=3.3.0
 cryptography==45.0.5
@@ -32,19 +33,44 @@ cryptography==45.0.5
 # Environment and Configuration
 python-dotenv==1.1.0
 
+# JSON Schema Validation (for SchemaValidator security control)
+jsonschema==4.23.0
+
 # Development and Utility
 rich==13.9.4
-jsonschema==4.23.0
 
 # Production WSGI Server
 gunicorn>=21.2.0
 
-# Testing Dependencies (for development)
+# Testing Dependencies (for comprehensive zero-trust testing)
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
 pytest-httpx>=0.21.0
+pytest-requests-mock>=1.12.0
 
-# Additional dependencies that may be needed
-# asyncio-mqtt>=0.11.0  # For MQTT support
-# websockets>=11.0.0    # For WebSocket support
-# redis>=4.5.0          # For caching and session management
+# Additional Zero-Trust Security Dependencies
+# URL validation for security controls
+validators>=0.22.0
+
+# Rate limiting for security controls
+slowapi>=0.1.9
+
+# Additional dependencies that may be needed for enhanced security
+# bcrypt>=4.0.0              # For password hashing if needed
+# passlib[bcrypt]>=1.7.4     # Password hashing utilities
+# argon2-cffi>=23.1.0        # Argon2 password hashing
+# python-multipart>=0.0.6    # Already included above for file uploads
+
+# Optional semantic analysis dependencies (for SemanticMappingValidator)
+# Uncomment these if advanced semantic analysis is needed:
+# sentence-transformers>=2.2.0  # For semantic similarity
+# transformers>=4.21.0          # For advanced NLP models
+# torch>=2.0.0                  # Required by transformers
+# numpy>=1.24.0                 # Required by ML libraries
+
+# Optional API security enhancements
+# python-multipart>=0.0.6    # Already included - for file upload security
+# email-validator>=2.0.0     # For email validation in security controls
+
+# Note: Model Armor API integration is handled via HTTP requests
+# No additional dependencies needed - uses existing 'requests' library

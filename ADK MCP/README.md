@@ -1,15 +1,38 @@
-# Model Context Protocol (MCP) Implementation with Google ADK
+# Model Context Protocol (MCP) Implementation with Zero-Trust Security Architecture
 
-A comprehensive implementation of the Model Context Protocol (MCP) with Google ADK integration, featuring secure agent services, FastAPI endpoints, and Cloud Run deployment capabilities.
+A comprehensive implementation of the Model Context Protocol (MCP) with Google ADK integration, featuring **zero-trust security architecture**, secure agent services, FastAPI endpoints, and Cloud Run deployment capabilities.
 
 ## 🎯 **Overview**
 
-This project implements a complete MCP workflow that enables:
+This project implements a complete MCP workflow with **enterprise-grade zero-trust security** that enables:
 - **Dynamic Tool Discovery**: Agents can discover and use tools from MCP servers
+- **Zero-Trust Security**: Complete 12-control security architecture with defense-in-depth
 - **Secure Communication**: Google Cloud Run service-to-service authentication with ID tokens and OPA policy enforcement
-- **Production Deployment**: FastAPI service ready for Google Cloud Run
+- **Production Deployment**: FastAPI service ready for Google Cloud Run with comprehensive security
 - **Agent Orchestration**: Pre-initialized agents with session management
-- **Security Controls**: Input sanitization, context security, and credential management
+- **Security Controls**: Complete security pipeline with input sanitization, context security, and credential management
+
+## 🔒 **Zero-Trust Security Architecture**
+
+This implementation features a **comprehensive zero-trust security architecture** consisting of **12 integrated security controls**:
+
+### **Core Security Controls** (Essential Foundation)
+1. **InputSanitizer** - Prompt injection and input sanitization
+2. **AzureTokenValidator** - JWT token validation and authentication
+3. **SchemaValidator** - Input validation with security rules
+4. **CredentialManager** - Secure credential handling
+5. **ContextSanitizer** - Context poisoning prevention
+6. **ContextSecurity** - Context signing and verification
+7. **OPAPolicyClient** - Policy enforcement
+
+### **Advanced Security Controls** (Zero-Trust Enhancement)
+8. **InstallerSecurityValidator** - Supply chain protection
+9. **ServerNameRegistry** - Server impersonation prevention
+10. **RemoteServerAuthenticator** - Secure communication
+11. **ToolExposureController** - Capability management
+12. **SemanticMappingValidator** - Tool metadata verification
+
+> **Zero-Trust Principle**: The complete collection of all 12 security controls working together constitutes the zero-trust security architecture, implementing "never trust, always verify" across all components.
 
 ## 🏗️ **Architecture**
 
@@ -20,13 +43,21 @@ This project implements a complete MCP workflow that enables:
 │   Port: 8080    │    │   Port: 8080     │    │   Port: 8000    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
         │                        │                        │
-        │                        │                        │
+        │         🔒 Zero-Trust Security Architecture 🔒        │
         ▼                        ▼                        ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│ Google ADK      │    │ Cloud Run        │    │ Security Layer  │
-│ (LLM + Tools)   │    │ (Scalable Host)  │    │ (OPA + Auth)    │
+│ Google ADK      │    │ Cloud Run        │    │ 12 Security     │
+│ (LLM + Tools)   │    │ (Scalable Host)  │    │ Controls        │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
+
+### **Security-First Architecture**
+
+The entire architecture is built on **zero-trust security principles** with:
+- **Defense-in-Depth**: Multiple security layers protecting each component
+- **Never Trust, Always Verify**: Every request goes through comprehensive validation
+- **Principle of Least Privilege**: Tools and capabilities are denied by default
+- **Continuous Validation**: Security controls operate throughout the request lifecycle
 
 ### **Dual-Service Architecture**
 
