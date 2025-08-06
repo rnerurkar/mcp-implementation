@@ -277,6 +277,44 @@ class InputSanitizer:
                 'sanitized_text': text
             }
 
+    def sanitize_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Sanitize a dictionary of parameters by applying string sanitization to all string values
+        
+        This method recursively sanitizes all string values in a dictionary while preserving
+        the structure and non-string values. Useful for sanitizing tool parameters.
+        
+        Args:
+            data (Dict[str, Any]): Dictionary containing parameters to sanitize
+            
+        Returns:
+            Dict[str, Any]: Dictionary with sanitized string values
+        """
+        if not isinstance(data, dict):
+            return data
+            
+        sanitized = {}
+        for key, value in data.items():
+            if isinstance(value, str):
+                # Sanitize string values
+                sanitized[key] = self.sanitize(value)
+            elif isinstance(value, dict):
+                # Recursively sanitize nested dictionaries
+                sanitized[key] = self.sanitize_dict(value)
+            elif isinstance(value, list):
+                # Sanitize lists that may contain strings
+                sanitized[key] = [
+                    self.sanitize(item) if isinstance(item, str) 
+                    else self.sanitize_dict(item) if isinstance(item, dict)
+                    else item
+                    for item in value
+                ]
+            else:
+                # Keep non-string values as-is (numbers, booleans, etc.)
+                sanitized[key] = value
+                
+        return sanitized
+
     def _get_credential_if_available(self, secret_name: str) -> Optional[str]:
         """
         Safely attempt to get credentials from credential manager
