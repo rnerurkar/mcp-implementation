@@ -11,57 +11,117 @@
                                          │ extends
                                          │
                         ┌─────────────────────────────────────┐
-                        │         BaseMCPServer               │
-                        │         <<abstract>>                │
-                        │ ─────────────────────────────────── │
-                        │ +config: Dict[str, Any]             │
-                        │ +input_sanitizer: InputSanitizer    │
-                        │ +token_validator: GCTokenValidator  │
-                        │ +credential_manager: CredManager    │
-                        │ +context_sanitizer: ContextSanitizer│
-                        │ +context_security: ContextSecurity  │
-                        │ +opa_client: OPAPolicyClient        │
-                        │ +installer_validator: InstValidator │
-                        │ +server_registry: ServerNameRegistry│
-                        │ +remote_authenticator: RemoteAuth   │
-                        │ +tool_controller: ToolController    │
-                        │ +semantic_validator: SemanticValid │
-                        │ ─────────────────────────────────── │
-                        │ +handle_request() : Dict[str, Any]  │
-                        │ +validate_security_config()         │
-                        │ +_get_tool_metadata()               │
-                        │ +_determine_error_phase()           │
-                        │ <<abstract>> +_load_tool_schema()   │
-                        │ <<abstract>> +_load_security_rules()│
-                        │ <<abstract>> +get_expected_audience│
-                        │ <<abstract>> +validate_authorization│
-                        │ <<abstract>> +fetch_data()          │
-                        │ <<abstract>> +build_context()       │
-                        └─────────────────────────────────────┘
-                                         △
-                                         │ extends
-                                         │
-                        ┌─────────────────────────────────────┐
-                        │           MCPServer                 │
-                        │ ─────────────────────────────────── │
-                        │ +mcp: FastMCP                       │
-                        │ ─────────────────────────────────── │
-                        │ +register_tools()                   │
-                        │ +get_fastapi_app(): FastAPI         │
-                        │ +_load_tool_schema(): Dict          │
-                        │ +_load_security_rules(): List       │
-                        │ +get_expected_audience(): str       │
-                        │ +validate_authorization()           │
-                        │ +fetch_data(): dict                 │
-                        │ +build_context(): dict              │
-                        └─────────────────────────────────────┘
-                                         │
-                                         │ contains
-                                         ▼
-                               ┌─────────────────┐
-                               │    FastMCP      │
-                               │   (external)    │
-                               └─────────────────┘
+                        │         BaseMCPServer               │──────┐
+                        │         <<abstract>>                │      │
+                        │ ─────────────────────────────────── │      │ delegates to
+                        │ +config: Dict[str, Any]             │      │
+                        │ +input_sanitizer: InputSanitizer    │      │ ┌─────────────────────┐
+                        │ +token_validator: GCTokenValidator  │      ├─│   InputSanitizer    │
+                        │ +credential_manager: CredManager    │      │ │ ─────────────────── │
+                        │ +context_sanitizer: ContextSanitizer│      │ │ +security_profile   │
+                        │ +context_security: ContextSecurity  │      │ │ +patterns          │
+                        │ +opa_client: OPAPolicyClient        │      │ │ +sanitize()        │
+                        │ +installer_validator: InstValidator │      │ │ +sanitize_dict()   │
+                        │ +server_registry: ServerNameRegistry│      │ └─────────────────────┘
+                        │ +remote_authenticator: RemoteAuth   │      │
+                        │ +tool_controller: ToolController    │      │ ┌─────────────────────┐
+                        │ +semantic_validator: SemanticValid │      ├─│   SchemaValidator   │
+                        │ ─────────────────────────────────── │      │ │ ─────────────────── │
+                        │ +handle_request() : Dict[str, Any]  │      │ │ +schema            │
+                        │ +validate_security_config()         │      │ │ +security_rules    │
+                        │ +_get_tool_metadata()               │      │ │ +validate()        │
+                        │ +_determine_error_phase()           │      │ │ +_apply_rules()    │
+                        │ <<abstract>> +_load_tool_schema()   │      │ └─────────────────────┘
+                        │ <<abstract>> +_load_security_rules()│      │
+                        │ <<abstract>> +get_expected_audience │      │ ┌─────────────────────┐
+                        │ <<abstract>> +validate_authorization│      ├─│GCloudTokenValidator │
+                        │ <<abstract>> +fetch_data()          │      │ │ ─────────────────── │
+                        │ <<abstract>> +build_context()       │      │ │ +expected_audience  │
+                        └─────────────────────────────────────┘      │ │ +project_id        │
+                                         △                            │ │ +validate()        │
+                                         │ extends                    │ │ +_verify_token()   │
+                                         │                            │ └─────────────────────┘
+                        ┌─────────────────────────────────────┐      │
+                        │           MCPServer                 │      │ ┌─────────────────────┐
+                        │ ─────────────────────────────────── │      ├─│  OPAPolicyClient    │
+                        │ +mcp: FastMCP                       │      │ │ ─────────────────── │
+                        │ ─────────────────────────────────── │      │ │ +opa_url           │
+                        │ +register_tools()                   │      │ │ +timeout           │
+                        │ +get_fastapi_app(): FastAPI         │      │ │ +check_policy()    │
+                        │ +_load_tool_schema(): Dict          │      │ │ +_make_request()   │
+                        │ +_load_security_rules(): List       │      │ └─────────────────────┘
+                        │ +get_expected_audience(): str       │      │
+                        │ +validate_authorization()           │      │ ┌─────────────────────┐
+                        │ +fetch_data(): dict                 │      ├─│InstallerSecValidator│
+                        │ +build_context(): dict              │      │ │ ─────────────────── │
+                        └─────────────────────────────────────┘      │ │ +trusted_registries │
+                                         │                            │ │ +signature_keys     │
+                                         │ contains                   │ │ +validate_integrity│
+                                         ▼                            │ │ +_check_source()    │
+                               ┌─────────────────┐                    │ └─────────────────────┘
+                               │    FastMCP      │                    │
+                               │   (external)    │                    │ ┌─────────────────────┐
+                               └─────────────────┘                    ├─│ ServerNameRegistry  │
+                                                                      │ │ ─────────────────── │
+                                                                      │ │ +registry_backend   │
+                                                                      │ │ +namespace_sep      │
+                                                                      │ │ +verify_identity()  │
+                                                                      │ │ +register_server()  │
+                                                                      │ └─────────────────────┘
+                                                                      │
+                                                                      │ ┌─────────────────────┐
+                                                                      ├─│RemoteServerAuth     │
+                                                                      │ │ ─────────────────── │
+                                                                      │ │ +trusted_ca_certs   │
+                                                                      │ │ +handshake_timeout  │
+                                                                      │ │ +authenticate()     │
+                                                                      │ │ +_verify_cert()     │
+                                                                      │ └─────────────────────┘
+                                                                      │
+                                                                      │ ┌─────────────────────┐
+                                                                      ├─│ToolExposureControl  │
+                                                                      │ │ ─────────────────── │
+                                                                      │ │ +policy_file        │
+                                                                      │ │ +default_policy     │
+                                                                      │ │ +validate_exposure()│
+                                                                      │ │ +approve_exposure() │
+                                                                      │ └─────────────────────┘
+                                                                      │
+                                                                      │ ┌─────────────────────┐
+                                                                      ├─│SemanticMappingValid │
+                                                                      │ │ ─────────────────── │
+                                                                      │ │ +semantic_models    │
+                                                                      │ │ +validation_cache   │
+                                                                      │ │ +validate_semantics│
+                                                                      │ │ +_check_consistency│
+                                                                      │ └─────────────────────┘
+                                                                      │
+                                                                      │ ┌─────────────────────┐
+                                                                      ├─│  CredentialManager  │
+                                                                      │ │ ─────────────────── │
+                                                                      │ │ +project_id         │
+                                                                      │ │ +secret_client      │
+                                                                      │ │ +get_credentials()  │
+                                                                      │ │ +_get_secret()      │
+                                                                      │ └─────────────────────┘
+                                                                      │
+                                                                      │ ┌─────────────────────┐
+                                                                      ├─│  ContextSanitizer   │
+                                                                      │ │ ─────────────────── │
+                                                                      │ │ +security_level     │
+                                                                      │ │ +sanitization_rules │
+                                                                      │ │ +sanitize()         │
+                                                                      │ │ +_remove_sensitive()│
+                                                                      │ └─────────────────────┘
+                                                                      │
+                                                                      │ ┌─────────────────────┐
+                                                                      └─│  ContextSecurity    │
+                                                                        │ ─────────────────── │
+                                                                        │ +kms_key_path       │
+                                                                        │ +signing_strategy   │
+                                                                        │ +sign()             │
+                                                                        │ +verify()           │
+                                                                        └─────────────────────┘
 
 ## Agent and Client Architecture
 
@@ -228,6 +288,31 @@
 - `BaseMCPClient` INVOKES HTTP APIs on `MCPServer` endpoints
 - `MCPServer` DELEGATES security to `BaseMCPServer`
 - `BaseMCPServer` DELEGATES protocol handling to `FastMCP`
+
+### BaseMCPServer Security Control Delegation (Phase-based)
+- `BaseMCPServer.handle_request()` DELEGATES to all 12 security controls:
+  
+  **Phase 1 - Pre-Authentication (Fast Fail):**
+  - DELEGATES input validation to `InputSanitizer`
+  - DELEGATES schema validation to `SchemaValidator`
+  
+  **Phase 2 - Authentication & Authorization:**
+  - DELEGATES token validation to `GoogleCloudTokenValidator`
+  - DELEGATES policy checking to `OPAPolicyClient`
+  
+  **Phase 3 - Infrastructure Security:**
+  - DELEGATES integrity validation to `InstallerSecurityValidator`
+  - DELEGATES identity verification to `ServerNameRegistry`
+  - DELEGATES authentication to `RemoteServerAuthenticator`
+  
+  **Phase 4 - Tool-Specific Security:**
+  - DELEGATES exposure control to `ToolExposureController`
+  - DELEGATES semantic validation to `SemanticMappingValidator`
+  
+  **Phase 5 - Execution & Response Security:**
+  - DELEGATES credential management to `CredentialManager`
+  - DELEGATES context sanitization to `ContextSanitizer`
+  - DELEGATES response security to `ContextSecurity`
 
 ### API Communication Flow
 ```
