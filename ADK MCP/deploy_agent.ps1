@@ -1,5 +1,26 @@
-# PowerShell script to deploy Agent Service to Cloud Run
-# Usage: .\deploy_agent.ps1 [PROJECT_ID] [REGION]
+# PowerShell script to deploy Agent Service to Cloud RunWrite-Host "✅ Template Method Agent Service deployment completed!" -ForegroundColor Green
+Write-Host "🏛️ Architecture: Template Method Pattern" -ForegroundColor Cyan
+Write-Host "🛡️ Security: 4 Agent Controls Active" -ForegroundColor Cyan
+Write-Host "🌐 Service URL: $SERVICE_URL" -ForegroundColor Cyan
+Write-Host "💚 Health Check: $SERVICE_URL/health" -ForegroundColor Cyan
+Write-Host "💬 Greet Endpoint: $SERVICE_URL/greet" -ForegroundColor Cyan
+Write-Host "📊 Security Status: $SERVICE_URL/security-status" -ForegroundColor Cyan
+Write-Host "📚 API Docs: $SERVICE_URL/docs" -ForegroundColor Cyan
+
+Write-Host ""
+Write-Host "🏛️ Template Method Pattern Features:" -ForegroundColor Yellow
+Write-Host "1. BaseAgentService - Abstract security framework"
+Write-Host "2. EnhancedAgentService - Concrete Google ADK implementation"
+Write-Host "3. Security-Business Logic Separation"
+Write-Host "4. Consistent security pipeline across all agent types"
+
+Write-Host ""
+Write-Host "📋 Next Steps:" -ForegroundColor Yellow
+Write-Host "1. Test Template Method deployment: python test_template_method.py"
+Write-Host "2. Verify security status: curl $SERVICE_URL/security-status"
+Write-Host "3. Test security controls: python test_security_controls.py"
+Write-Host "4. Monitor Template Method performance"
+Write-Host "5. Consider adding new agent implementations (ChatGPT, Claude)"deploy_agent.ps1 [PROJECT_ID] [REGION]
 
 param(
     [string]$ProjectId = "your-project-id",
@@ -11,10 +32,12 @@ $SERVICE_NAME = "agent-greeting-service"
 $IMAGE_NAME = "gcr.io/$ProjectId/$SERVICE_NAME"
 $DOCKERFILE = "Dockerfile.agentservice"
 
-Write-Host "🚀 Deploying Agent Service to Cloud Run" -ForegroundColor Green
+Write-Host "🏛️ Deploying Template Method Agent Service to Cloud Run" -ForegroundColor Green
 Write-Host "Project: $ProjectId"
 Write-Host "Region: $Region"
 Write-Host "Service: $SERVICE_NAME"
+Write-Host "Architecture: Template Method Pattern"
+Write-Host "Security: 4 Agent + 12 MCP Controls"
 Write-Host "Dockerfile: $DOCKERFILE"
 Write-Host "----------------------------------------"
 
@@ -34,8 +57,8 @@ docker build -f $DOCKERFILE -t $IMAGE_NAME .
 Write-Host "📤 Pushing image to Container Registry..." -ForegroundColor Blue
 docker push $IMAGE_NAME
 
-# Deploy to Cloud Run
-Write-Host "🚀 Deploying to Cloud Run..." -ForegroundColor Blue
+# Deploy to Cloud Run with Template Method security configuration
+Write-Host "🚀 Deploying Template Method Agent Service to Cloud Run..." -ForegroundColor Blue
 gcloud run deploy $SERVICE_NAME `
     --image $IMAGE_NAME `
     --region $Region `
@@ -46,8 +69,8 @@ gcloud run deploy $SERVICE_NAME `
     --min-instances 1 `
     --max-instances 10 `
     --timeout 300 `
-    --set-env-vars "AGENT_MODEL=gemini-1.5-flash,AGENT_NAME=GreetingAgent" `
-    --port 8080
+    --port 8080 `
+    --set-env-vars "AGENT_MODEL=gemini-1.5-flash,AGENT_NAME=GreetingAgent,ENABLE_PROMPT_PROTECTION=true,ENABLE_CONTEXT_VALIDATION=true,ENABLE_MCP_VERIFICATION=true,ENABLE_RESPONSE_SANITIZATION=true,MAX_CONTEXT_SIZE=10000,PROMPT_INJECTION_THRESHOLD=0.7,VERIFY_MCP_SIGNATURES=true,TRUST_UNSIGNED_RESPONSES=false"
 
 # Get service URL
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $Region --format 'value(status.url)'

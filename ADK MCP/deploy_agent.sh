@@ -12,10 +12,12 @@ SERVICE_NAME="agent-greeting-service"
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 DOCKERFILE="Dockerfile.agentservice"
 
-echo "🚀 Deploying Agent Service to Cloud Run"
+echo "🏛️ Deploying Template Method Agent Service to Cloud Run"
 echo "Project: $PROJECT_ID"
 echo "Region: $REGION"
 echo "Service: $SERVICE_NAME"
+echo "Architecture: Template Method Pattern"
+echo "Security: 4 Agent + 12 MCP Controls"
 echo "Dockerfile: $DOCKERFILE"
 echo "----------------------------------------"
 
@@ -42,7 +44,7 @@ gcloud run deploy $SERVICE_NAME \
     --min-instances 1 \
     --max-instances 10 \
     --timeout 300 \
-    --set-env-vars "AGENT_MODEL=gemini-1.5-flash,AGENT_NAME=GreetingAgent" \
+    --set-env-vars "AGENT_MODEL=gemini-1.5-flash,AGENT_NAME=GreetingAgent,TEMPLATE_METHOD_SECURITY_ENABLED=true,TEMPLATE_METHOD_SECURITY_LEVEL=HIGH,TEMPLATE_METHOD_REQUEST_FILTERING=true,TEMPLATE_METHOD_RESPONSE_FILTERING=true" \
     --port 8080
 
 # Get service URL
