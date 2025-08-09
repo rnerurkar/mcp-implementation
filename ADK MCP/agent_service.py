@@ -18,6 +18,7 @@ from google.genai import types  # Google GenAI types for message handling
 from rich import print  # Enhanced printing with colors and formatting
 from base_mcp_client import BaseMCPClient  # Our custom MCP client for tool discovery
 from agent_security_controls import OptimizedAgentSecurity, OptimizedSecurityConfig  # Security controls
+from base_agent_service import BaseAgentService, BaseAgentServiceConfig, GreetingRequest, GreetingResponse  # Base class
 
 # Load environment variables from .env file (if it exists)
 # This allows us to configure the service without hardcoding values
@@ -26,33 +27,12 @@ load_dotenv()
 # Global variable to store the initialized agent service
 # This allows us to share the same agent instance across all HTTP requests
 # for better performance and consistency
-global_agent_service: Optional['AgentService'] = None
+global_agent_service: Optional['EnhancedAgentService'] = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# ===== PYDANTIC MODELS =====
-
-class GreetingRequest(BaseModel):
-    """
-    Data model for incoming greeting requests with security enhancements
-    FastAPI will automatically validate that incoming JSON matches this structure
-    """
-    message: str = Field(..., description="The message to send to the agent", min_length=1)
-    user_id: Optional[str] = Field(default=None, description="Optional user ID for session tracking")
-    session_id: Optional[str] = Field(default=None, description="Optional session ID for conversation continuity")
-    signed_context: Optional[str] = Field(default=None, description="Optional signed context from MCP server")
-
-class GreetingResponse(BaseModel):
-    """
-    Data model for greeting responses sent back to the client with security metadata
-    FastAPI will automatically convert our Python dict to JSON using this structure
-    """
-    response: str = Field(..., description="The agent's response")
-    user_id: str = Field(..., description="User ID used for the session")
-    session_id: str = Field(..., description="Session ID used for the conversation")
-    success: bool = Field(..., description="Whether the request was successful")
-    security_validation: Optional[Dict[str, Any]] = Field(default=None, description="Security validation metadata")
+# ===== ADDITIONAL PYDANTIC MODELS =====
 
 class HealthResponse(BaseModel):
     """
@@ -73,124 +53,73 @@ class SecurityStatusResponse(BaseModel):
 
 # ===== ENHANCED AGENT SERVICE =====
 
-class AgentService:
+# ===== ENHANCED AGENT SERVICE =====
+
+class EnhancedAgentService(BaseAgentService):
     """
-    Enhanced AgentService with optimized security controls
+    Concrete implementation of BaseAgentService with Google ADK integration
     
-    Security Architecture:
-    - Apigee Gateway: Handles authentication, rate limiting, CORS, basic validation
-    - AgentService: Handles agent-specific threats (4 essential controls)
-    - MCP Server: Handles comprehensive tool security (12 controls)
+    This class inherits from BaseAgentService and implements the abstract methods
+    to provide a complete agent service with:
+    - Google ADK LLM Agent integration
+    - MCP tool discovery and usage
+    - Session management with InMemorySessionService
+    - Enhanced security through the base class template methods
     
-    Agent-Specific Security Controls:
-    1. Prompt Injection Protection - Prevents agent behavior manipulation
-    2. Context Size Validation - Protects agent from resource exhaustion
-    3. MCP Response Verification - Trust but verify MCP responses
-    4. Response Sanitization - Prevents information leakage
+    The base class handles all security controls, allowing this class to focus
+    on the specific agent implementation and tool integration.
     """
     
-    def __init__(self, mcp_client: BaseMCPClient, model: str, name: str, instruction: str, security_config: OptimizedSecurityConfig = None):
+    def __init__(self, config: BaseAgentServiceConfig):
         """
-        Initialize the AgentService with configuration parameters and security
-        Args:
-            mcp_client: Client for connecting to MCP (Model Context Protocol) servers
-            model: The LLM model to use (e.g., "gemini-1.5-flash")
-            name: Display name for the agent
-            instruction: System prompt that defines the agent's behavior
-            security_config: Configuration for security controls
-        """
-        self.mcp_client = mcp_client
-        self.model = model
-        self.name = name
-        self.instruction = instruction
+        Initialize the Enhanced Agent Service
         
-        # These will be set during initialization
+        Args:
+            config: Configuration for the agent service
+        """
+        super().__init__(config)
+        
+        # Google ADK specific components
         self.agent = None  # The actual LLM agent instance
         self.toolset = None  # Collection of tools from MCP servers
         self.session_service = None  # Manages conversation sessions
-        self.is_initialized = False  # Flag to track if initialization completed
-        self.app_name = "greeting_app"  # Internal app identifier
+        self.app_name = "enhanced_greeting_app"  # Internal app identifier
+    
+    # ===== IMPLEMENTATION OF ABSTRACT METHODS =====
+    
+    async def _initialize_mcp_client(self):
+        """Initialize MCP client for tool discovery"""
+        self.mcp_client = BaseMCPClient(
+            mcp_url=self.mcp_server_url,
+            target_audience=self.mcp_server_url
+        )
         
-        # Initialize security system
-        self.security_config = security_config or OptimizedSecurityConfig()
-        self.security = OptimizedAgentSecurity(self.security_config)
-        self.logger = logging.getLogger("agent_service")
-
-    async def initialize(self):
-        """
-        Initialize the agent with tools and session service
-        This method is called once when the FastAPI application starts up.
-        It performs expensive operations like:
-        - Connecting to MCP servers to discover available tools
-        - Creating the LLM agent with those tools
-        - Setting up session management for conversations
-        By doing this once at startup (not for each request), we get much better performance.
-        """
-        try:
-            print(f"🚀 Initializing Agent Service: {self.name}")
-            
-            # Connect to MCP server and get available tools
-            # This might include tools for web search, calculations, file operations, etc.
-            tools, toolset = await self.mcp_client.get_toolset()
-            self.toolset = toolset
-            
-            # Create the LLM Agent with the discovered tools
-            # The agent will be able to call these tools when needed
-            self.agent = LlmAgent(
-                model=self.model,  # Which LLM to use (e.g., Gemini)
-                name=self.name,    # Agent's display name
-                instruction=self.instruction,  # System prompt defining behavior
-                tools=tools,       # Available tools for the agent
-            )
-            
-            # Initialize session service for managing conversations
-            # This keeps track of conversation history for each user
-            self.session_service = InMemorySessionService()
-            
-            # Mark as successfully initialized
-            self.is_initialized = True
-            
-            # Log security status
-            security_status = await self.security.get_security_status()
-            active_controls = [c for c in security_status['active_controls'] if c is not None]
-            print(f"✅ Agent Service initialized successfully with {len(tools)} tools")
-            print(f"🛡️ Security Controls Active: {len(active_controls)}/4")
-            print(f"🏗️ Architecture: {security_status['architecture']}")
-            
-        except Exception as e:
-            print(f"❌ Failed to initialize Agent Service: {e}")
-            raise  # Re-raise the exception to prevent the service from starting
-
-    async def greet_user(self, message: str, user_id: Optional[str] = None, session_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Process a greeting request from a user using the pre-initialized agent
-        This is the core method that:
-        1. Validates the service is ready
-        2. Manages user session (creating IDs if needed)
-        3. Sends the message to the LLM agent
-        4. Processes the agent's response and any tool calls
-        5. Returns the final response
+        print(f"🔗 Connecting to MCP server: {self.mcp_server_url}")
+    
+    async def _initialize_agent(self):
+        """Initialize the Google ADK agent with tools"""
+        # Connect to MCP server and get available tools
+        tools, toolset = await self.mcp_client.get_toolset()
+        self.toolset = toolset
         
-        Args:
-            message: The user's message/question
-            user_id: Optional identifier for the user (generated if not provided)
-            session_id: Optional identifier for the conversation (generated if not provided)
-            
-        Returns:
-            Dictionary containing the agent's response and session information
-        """
-        # Safety check: ensure the agent service was properly initialized
-        if not self.is_initialized:
-            raise HTTPException(status_code=503, detail="Agent service not initialized")
+        # Create the LLM Agent with the discovered tools
+        self.agent = LlmAgent(
+            model=self.model,
+            name=self.name,
+            instruction=self.instruction,
+            tools=tools,
+        )
         
-        # Generate unique IDs if not provided by the client
-        # This allows for both stateful (with IDs) and stateless (without IDs) usage
-        user_id = user_id or f"user_{uuid.uuid4().hex[:8]}"
-        session_id = session_id or f"session_{uuid.uuid4().hex[:8]}"
+        # Initialize session service for managing conversations
+        self.session_service = InMemorySessionService()
         
+        print(f"🤖 Agent initialized with {len(tools)} tools")
+    
+    async def _process_agent_request(self, message: str, user_id: str, session_id: str, 
+                                   context: Optional[str], validation_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Process the agent request using Google ADK"""
         try:
             # Create or retrieve an existing conversation session
-            # Sessions maintain conversation history for context
             session = await self.session_service.create_session(
                 app_name=self.app_name,
                 user_id=user_id,
@@ -198,7 +127,6 @@ class AgentService:
             )
             
             # Create a Runner to execute the agent's processing
-            # The Runner handles the complex orchestration of LLM calls and tool usage
             runner = Runner(
                 agent=self.agent,
                 app_name=self.app_name,
@@ -209,15 +137,12 @@ class AgentService:
             content = types.Content(role='user', parts=[types.Part(text=message)])
             
             # Process the message through the agent
-            # This returns an async iterator of events (LLM responses, tool calls, etc.)
             all_events = []
             async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
-                # Log each event for debugging (LLM thinking, tool calls, final response)
                 print(f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}")
                 all_events.append(event)
             
             # Extract the final response from all the events
-            # The agent might generate multiple events (thinking, tool calls) before the final answer
             final_response_events = [e for e in all_events if e.is_final_response()]
             final_response_text = ""
             
@@ -232,127 +157,97 @@ class AgentService:
             
             print(f"<<< Agent Response: {final_response_text}")
             
-            # Return the response in the expected format
             return {
                 "response": final_response_text,
-                "user_id": user_id,
-                "session_id": session_id,
-                "success": True
-            }
-            
-        except Exception as e:
-            # Log the error and convert it to an HTTP exception
-            print(f"❌ Error processing greeting: {e}")
-            raise HTTPException(status_code=500, detail=f"Error processing greeting: {str(e)}")
-
-    async def secure_greet_user(self, request: GreetingRequest, fastapi_request: Request) -> Dict[str, Any]:
-        """
-        Process user greeting with optimized security validation
-        
-        Implements 4 essential security controls without redundancy:
-        - Apigee handles: auth, rate limiting, CORS, basic validation
-        - Agent handles: prompt injection, context size, MCP verification, response sanitization
-        - MCP Server handles: comprehensive tool security
-        """
-        if not self.is_initialized:
-            raise HTTPException(status_code=503, detail="Agent service not initialized")
-        
-        user_id = request.user_id or "anonymous"
-        session_id = request.session_id or "default"
-        
-        try:
-            # Phase 1: Request Validation (Agent-Specific Controls)
-            request_valid, validation_results = await self.security.validate_request(
-                message=request.message,
-                user_id=user_id,
-                session_id=session_id,
-                context=request.signed_context or ""
-            )
-            
-            if not request_valid:
-                violations = validation_results.get("violations", [])
-                if "prompt_injection_detected" in violations:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Content policy violation: Prompt injection detected"
-                    )
-                elif "context_size_exceeded" in violations:
-                    raise HTTPException(
-                        status_code=413,
-                        detail="Request too large: Context size exceeded"
-                    )
-                else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Request validation failed"
-                    )
-            
-            # Phase 2: Process with Original Agent Service (calls MCP Server)
-            # MCP Server will apply its 12 security controls
-            agent_result = await self.greet_user(
-                message=request.message,
-                user_id=request.user_id,
-                session_id=request.session_id
-            )
-            
-            # Phase 3: Verify MCP Response Integrity
-            mcp_valid, verification_results = await self.security.verify_mcp_response(
-                mcp_response=agent_result,
-                user_id=user_id,
-                session_id=session_id
-            )
-            
-            if not mcp_valid:
-                raise HTTPException(
-                    status_code=502,
-                    detail="MCP server response validation failed"
-                )
-            
-            # Phase 4: Sanitize Response
-            agent_response = agent_result.get("response", "")
-            sanitized_response, sanitization_results = await self.security.sanitize_response(
-                response=agent_response,
-                user_id=user_id,
-                session_id=session_id
-            )
-            
-            # Prepare optimized response
-            enhanced_result = {
-                "response": sanitized_response,
-                "user_id": request.user_id,
-                "session_id": request.session_id,
                 "success": True,
-                "security_validation": {
-                    "agent_controls_passed": True,
-                    "mcp_verification_passed": True,
-                    "response_sanitized": sanitization_results["sanitization_metadata"].get("changes_made", False),
-                    "validation_timestamp": validation_results["timestamp"]
-                }
+                "events_processed": len(all_events),
+                "final_events": len(final_response_events)
             }
             
-            return enhanced_result
-            
-        except HTTPException:
-            raise
         except Exception as e:
-            self.logger.error(f"Secure greeting processing failed: {e}")
-            raise HTTPException(status_code=500, detail="Internal processing error")
-
-    async def get_security_status(self) -> Dict[str, Any]:
-        """Get optimized security status"""
-        return await self.security.get_security_status()
-
-    async def cleanup(self):
-        """
-        Clean up resources when the service shuts down
-        This method ensures proper cleanup of:
-        - MCP connections
-        - Tool resources
-        - Any other resources that need explicit cleanup
-        """
+            print(f"❌ Error processing agent request: {e}")
+            raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+    
+    async def _get_agent_specific_status(self) -> Dict[str, Any]:
+        """Get Google ADK agent specific status"""
+        return {
+            "agent_type": "google_adk_llm_agent",
+            "model": self.model,
+            "tools_available": len(self.toolset.tools) if self.toolset else 0,
+            "session_service_active": self.session_service is not None,
+            "agent_ready": self.agent is not None,
+            "mcp_client_connected": self.mcp_client is not None
+        }
+    
+    async def _cleanup_agent_resources(self):
+        """Clean up Google ADK specific resources"""
         if self.toolset:
             await self.toolset.close()
-            print("🧹 Agent service resources cleaned up")
+        
+        # Session service cleanup (if needed)
+        self.session_service = None
+        self.agent = None
+        
+        print("🧹 Google ADK agent resources cleaned up")
+    
+    async def _perform_health_checks(self):
+        """Perform health checks for Google ADK components"""
+        if not self.agent:
+            raise Exception("Agent not initialized")
+        
+        if not self.toolset:
+            raise Exception("Toolset not available")
+        
+        if not self.session_service:
+            raise Exception("Session service not initialized")
+        
+        if not self.mcp_client:
+            raise Exception("MCP client not initialized")
+        
+        print("✅ All health checks passed")
+    
+    # ===== LEGACY COMPATIBILITY METHODS =====
+    
+    async def greet_user(self, message: str, user_id: Optional[str] = None, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Legacy compatibility method for direct agent processing
+        
+        This method provides backward compatibility with the original interface
+        while using the new template method pattern internally.
+        """
+        # Create a request object
+        request = GreetingRequest(
+            message=message,
+            user_id=user_id,
+            session_id=session_id
+        )
+        
+        # Create a mock FastAPI request for compatibility
+        class MockRequest:
+            def __init__(self):
+                self.headers = {}
+                self.client = None
+        
+        mock_request = MockRequest()
+        
+        # Process through the template method
+        result = await self.process_request(request, mock_request)
+        
+        # Return in legacy format
+        return {
+            "response": result["response"],
+            "user_id": result["user_id"],
+            "session_id": result["session_id"],
+            "success": result["success"]
+        }
+    
+    async def secure_greet_user(self, request: GreetingRequest, fastapi_request: Request) -> Dict[str, Any]:
+        """
+        Legacy compatibility method for secure processing
+        
+        This method now delegates to the base class template method.
+        """
+        return await self.process_request(request, fastapi_request)
 
 # ===== FASTAPI APPLICATION LIFESPAN =====
 
@@ -367,14 +262,6 @@ async def lifespan(app: FastAPI):
         print("🚀 Starting Enhanced Agent Service...")
         print("🗂️ Architecture: Apigee Gateway + Agent Service + MCP Server")
         
-        # Initialize MCP client for discovering and connecting to tools
-        from base_mcp_client import BaseMCPClient
-        mcp_server_url = os.getenv("MCP_SERVER_URL", "https://your-mcp-server-abc123-uc.a.run.app")
-        mcp_client = BaseMCPClient(
-            mcp_url=mcp_server_url,
-            target_audience=mcp_server_url
-        )
-        
         # Initialize enhanced security configuration
         security_config = OptimizedSecurityConfig(
             enable_prompt_injection_protection=os.getenv("ENABLE_PROMPT_PROTECTION", "true").lower() == "true",
@@ -387,20 +274,28 @@ async def lifespan(app: FastAPI):
             trust_unsigned_responses=os.getenv("TRUST_UNSIGNED_RESPONSES", "false").lower() == "true"
         )
         
-        # Create and initialize our enhanced agent service
-        global_agent_service = AgentService(
-            mcp_client=mcp_client,
+        # Create configuration for the agent service
+        mcp_server_url = os.getenv("MCP_SERVER_URL", "https://your-mcp-server-abc123-uc.a.run.app")
+        agent_config = BaseAgentServiceConfig(
             model=os.getenv("AGENT_MODEL", "gemini-1.5-flash"),
             name=os.getenv("AGENT_NAME", "Enhanced MCP Agent"),
             instruction=os.getenv("AGENT_INSTRUCTION",
                 "You are a helpful AI assistant with access to secure MCP tools. "
                 "Be conversational, helpful, and use the available tools when appropriate. "
                 "Always maintain security best practices."),
+            mcp_server_url=mcp_server_url,
             security_config=security_config
         )
         
+        # Create and initialize our enhanced agent service
+        global_agent_service = EnhancedAgentService(agent_config)
+        
         # Perform the expensive initialization (tool discovery, agent creation)
-        await global_agent_service.initialize()
+        initialization_success = await global_agent_service.initialize()
+        
+        if not initialization_success:
+            raise Exception("Failed to initialize Enhanced Agent Service")
+        
         print("✅ Enhanced Agent Service startup complete")
         
         # === APPLICATION RUNS HERE ===
@@ -419,29 +314,52 @@ async def lifespan(app: FastAPI):
 # ===== FASTAPI APPLICATION SETUP =====
 
 app = FastAPI(
-    title="Enhanced Agent Service with Security Controls",
+    title="Enhanced Agent Service with Template Method Security",
     description="""
-    AI Agent Service with optimized security architecture
+    AI Agent Service implementing Template Method design pattern for security
     
-    Security Architecture:
-    ├── Apigee API Gateway (External)
+    Architecture Pattern:
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                  Template Method Pattern                        │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ BaseAgentService (Abstract)                                     │
+    │ ├── process_request() - Template method orchestrates security   │
+    │ ├── _validate_request_security() - Pre-processing controls      │
+    │ ├── _process_agent_request() - Abstract (implemented by subclass) │
+    │ ├── _validate_response_security() - Post-processing controls    │
+    │ └── _prepare_final_response() - Response preparation            │
+    │                                                                 │
+    │ EnhancedAgentService (Concrete)                                 │
+    │ ├── _initialize_mcp_client() - Google ADK MCP integration       │
+    │ ├── _initialize_agent() - LLM Agent setup                      │
+    │ ├── _process_agent_request() - Core agent processing           │
+    │ ├── _get_agent_specific_status() - Status reporting            │
+    │ └── _cleanup_agent_resources() - Resource management           │
+    └─────────────────────────────────────────────────────────────────┘
+    
+    Security Controls:
+    ├── Layer 1: Apigee API Gateway (External)
     │   ├── Authentication & Authorization
-    │   ├── Rate Limiting & Throttling
+    │   ├── Rate Limiting & Throttling  
     │   ├── CORS Policy Enforcement
     │   └── Basic Input Validation
     │
-    ├── Agent Service (This Service)
-    │   ├── Prompt Injection Protection
-    │   ├── Context Size Validation
-    │   ├── MCP Response Verification
-    │   └── Response Sanitization
+    ├── Layer 2: Agent Service (Template Method)
+    │   ├── Prompt Injection Protection (Model Armor + fallback)
+    │   ├── Context Size Validation (resource protection)
+    │   ├── MCP Response Verification (trust but verify)
+    │   └── Response Sanitization (leakage prevention)
     │
-    └── MCP Server (External)
+    └── Layer 3: MCP Server (External)
         └── Comprehensive Tool Security (12 controls)
     
-    This architecture eliminates redundancy while maintaining robust security at each layer.
+    Benefits:
+    • Template Method ensures consistent security across all requests
+    • Abstract base class allows easy extension with new agent types
+    • Clear separation between security (base) and functionality (concrete)
+    • Eliminates security redundancy while maintaining defense-in-depth
     """,
-    version="2.0.0-enhanced",
+    version="2.0.0-template-method",
     lifespan=lifespan
 )
 
@@ -480,14 +398,18 @@ async def health_check():
 @app.post("/greet", response_model=GreetingResponse)
 async def greet_user_endpoint(request: GreetingRequest, fastapi_request: Request):
     """
-    Enhanced greeting endpoint with streamlined security
+    Enhanced greeting endpoint with template method security
     
-    Security Flow:
-    1. Apigee Gateway validates: auth, rate limits, CORS, basic input
-    2. Agent Service validates: prompt injection, context size
-    3. MCP Server applies: comprehensive tool security (12 controls)
-    4. Agent Service verifies: MCP response integrity
-    5. Agent Service sanitizes: response output
+    Security Flow (Template Method Pattern):
+    1. BaseAgentService.process_request() orchestrates the entire flow
+    2. Pre-processing: Validates prompt injection, context size
+    3. Agent Processing: EnhancedAgentService._process_agent_request()
+    4. Post-processing: Verifies MCP response, sanitizes output
+    5. Response Preparation: Adds security metadata and timing
+    
+    This endpoint now uses the Template Method pattern where the base class
+    manages the security pipeline and calls the concrete implementation
+    for agent-specific processing.
     
     Example request:
     ```json
@@ -503,8 +425,8 @@ async def greet_user_endpoint(request: GreetingRequest, fastapi_request: Request
     if not global_agent_service:
         raise HTTPException(status_code=503, detail="Agent service not available")
     
-    # Process with enhanced security
-    result = await global_agent_service.secure_greet_user(request, fastapi_request)
+    # Process with template method pattern - base class handles security
+    result = await global_agent_service.process_request(request, fastapi_request)
     return GreetingResponse(**result)
 
 @app.get("/security/status", response_model=SecurityStatusResponse)
@@ -532,22 +454,24 @@ async def root():
     """
     global global_agent_service
     return {
-        "service": "Enhanced Agent Service with Security Controls",
+        "service": "Enhanced Agent Service with Template Method Security",
         "version": "2.0.0-enhanced",
         "status": "running",
         "agent_initialized": global_agent_service.is_initialized if global_agent_service else False,
         "architecture": {
-            "type": "optimized_layered_security",
+            "type": "template_method_pattern",
+            "pattern": "BaseAgentService (abstract) -> EnhancedAgentService (concrete)",
+            "security_flow": "Template method orchestrates security pipeline",
             "layers": {
                 "gateway": "Apigee API Gateway",
-                "agent": "Agent Service (4 controls)",
+                "agent": "Agent Service (4 controls via template method)",
                 "tools": "MCP Server (12 controls)"
             },
             "benefits": [
-                "Eliminates security redundancy",
-                "Optimizes performance (~5ms overhead)",
-                "Maintains defense-in-depth",
-                "Clear separation of concerns"
+                "Template Method pattern for extensible security",
+                "Clear separation of concerns (base vs concrete)",
+                "Consistent security pipeline across all requests",
+                "Easy to extend with new agent implementations"
             ]
         },
         "endpoints": {
@@ -578,11 +502,20 @@ class Agent:
     """
     Legacy Agent class for backward compatibility
     This maintains compatibility with older code that might expect the original Agent interface.
-    It wraps our new AgentService to provide the same API as before.
+    It wraps our new EnhancedAgentService to provide the same API as before.
     """
     def __init__(self, mcp_client: BaseMCPClient, model: str, name: str, instruction: str):
         """Initialize legacy agent wrapper"""
-        self.service = AgentService(mcp_client, model, name, instruction)
+        # Create configuration for the new agent service
+        config = BaseAgentServiceConfig(
+            model=model,
+            name=name,
+            instruction=instruction,
+            mcp_server_url=mcp_client.mcp_url if hasattr(mcp_client, 'mcp_url') else "http://localhost:8000"
+        )
+        self.service = EnhancedAgentService(config)
+        # Set the MCP client directly for compatibility
+        self.service.mcp_client = mcp_client
     
     async def setup(self):
         """Initialize the underlying agent service"""
