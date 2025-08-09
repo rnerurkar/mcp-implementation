@@ -30,6 +30,14 @@ spec:
           value: "gemini-1.5-flash"
         - name: AGENT_NAME
           value: "GreetingAgent"
+        - name: TEMPLATE_METHOD_SECURITY_ENABLED
+          value: "true"
+        - name: TEMPLATE_METHOD_SECURITY_LEVEL
+          value: "HIGH"
+        - name: TEMPLATE_METHOD_REQUEST_FILTERING
+          value: "true"
+        - name: TEMPLATE_METHOD_RESPONSE_FILTERING
+          value: "true"
         - name: AGENT_INSTRUCTION
           value: "You are a friendly greeting agent. Welcome users warmly and help them with their requests."
         resources:

@@ -1,9 +1,17 @@
-# Dockerfile for Cloud Run deployment
+# Dockerfile for Agent Service with Template Method Pattern
+# Architecture: BaseAgentService (abstract) + EnhancedAgentService (concrete)
+# Security: 4-control agent security pipeline integrated via Template Method
 FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+
+# Template Method Security Defaults (can be overridden at runtime)
+ENV TEMPLATE_METHOD_SECURITY_ENABLED=true
+ENV TEMPLATE_METHOD_SECURITY_LEVEL=HIGH
+ENV TEMPLATE_METHOD_REQUEST_FILTERING=true
+ENV TEMPLATE_METHOD_RESPONSE_FILTERING=true
 
 # Set work directory
 WORKDIR /app

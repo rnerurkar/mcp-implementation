@@ -62,9 +62,9 @@ class InputSanitizer:
 
 
 # %%
-# -------------------------------
-# 2. Token Validation (Azure AD)
-# -------------------------------
+# -------------------------------------------
+# 2. Token Validation (Google Cloud ID Tokens)
+# -------------------------------------------
 # Import jwk for PyJWKClient
 import jwt # Ensure jwt is imported for decode/encode
 from jwt import PyJWKClient
@@ -73,11 +73,11 @@ class SecurityException(Exception):
     """Custom exception for security-related errors."""
     pass
 
-class AzureTokenValidator:
-    """Validates Azure AD tokens with confused deputy prevention"""
-    AZURE_JWKS_URL = "https://login.microsoftonline.com/common/discovery/keys"
+class GoogleCloudTokenValidator:
+    """Validates Google Cloud ID tokens with confused deputy prevention"""
+    GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 
-    def __init__(self, expected_audience: str, required_scopes: List[str], issuer: str):
+    def __init__(self, expected_audience: str, required_scopes: List[str] = None, issuer: str = "https://accounts.google.com"):
         # Access PyJWKClient from the imported jwk module
         self.expected_audience = expected_audience
         self.required_scopes = required_scopes
@@ -420,10 +420,10 @@ class MCPServer:
         self.config = config
 
         # Initialize security components
-        self.token_validator = AzureTokenValidator(
-            expected_audience=config["azure_audience"],
-            required_scopes=config["azure_scopes"],
-            issuer=config["azure_issuer"]
+        self.token_validator = GoogleCloudTokenValidator(
+            expected_audience=config["expected_audience"],
+            required_scopes=config.get("required_scopes", []),
+            issuer=config.get("issuer", "https://accounts.google.com")
         )
 
         self.credential_manager = CredentialManager(
