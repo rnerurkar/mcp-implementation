@@ -6,6 +6,18 @@ param(
     [string]$Region = "us-central1"
 )
 
+# Validate parameters
+if ($ProjectId -eq "your-project-id") {
+    Write-Error "Please provide a valid Google Cloud Project ID"
+    Write-Host "Usage: .\deploy_mcpserver.ps1 [PROJECT_ID] [REGION]"
+    exit 1
+}
+
+if (-not $ProjectId -or $ProjectId.Trim() -eq "") {
+    Write-Error "Project ID cannot be empty"
+    exit 1
+}
+
 # Configuration
 $SERVICE_NAME = "mcp-server-service"
 $IMAGE_NAME = "gcr.io/$ProjectId/$SERVICE_NAME"
@@ -18,14 +30,46 @@ Write-Host "Service: $SERVICE_NAME"
 Write-Host "Dockerfile: $DOCKERFILE"
 Write-Host "----------------------------------------"
 
+# Validate required files exist
+if (-not (Test-Path $DOCKERFILE)) {
+    Write-Error "Dockerfile not found: $DOCKERFILE"
+    exit 1
+}
+
+if (-not (Test-Path "cloudrun-mcpserver.yaml")) {
+    Write-Error "Cloud Run configuration not found: cloudrun-mcpserver.yaml"
+    exit 1
+}
+
 # Ensure gcloud is configured
 Write-Host "Checking gcloud configuration..." -ForegroundColor Blue
+
+# Check if user is authenticated
+$AUTH_CHECK = gcloud auth list --filter="status:ACTIVE" --format="value(account)" 2>$null
+if (-not $AUTH_CHECK) {
+    Write-Error "No active gcloud authentication found. Please run 'gcloud auth login' first."
+    exit 1
+}
+
 gcloud config set project $ProjectId
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to set gcloud project"
+    exit 1
+}
 
 # Enable required APIs
 Write-Host "Enabling required APIs..." -ForegroundColor Blue
 gcloud services enable run.googleapis.com
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to enable Cloud Run API"
+    exit 1
+}
+
 gcloud services enable containerregistry.googleapis.com
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to enable Container Registry API"
+    exit 1
+}
 
 # Create service account if it doesn't exist
 Write-Host "Setting up service account..." -ForegroundColor Blue
@@ -54,10 +98,26 @@ if ($LASTEXITCODE -ne 0) {
 
 # Build and push container image
 Write-Host "Building container image..." -ForegroundColor Blue
+
+# Configure Docker to use gcloud as credential helper
+gcloud auth configure-docker --quiet
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to configure Docker for gcloud"
+    exit 1
+}
+
 docker build -f $DOCKERFILE -t $IMAGE_NAME .
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Docker build failed"
+    exit 1
+}
 
 Write-Host "Pushing image to Container Registry..." -ForegroundColor Blue
 docker push $IMAGE_NAME
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Docker push failed"
+    exit 1
+}
 
 # Update the YAML file with correct project ID
 Write-Host "Updating Cloud Run configuration..." -ForegroundColor Blue
@@ -66,9 +126,18 @@ Write-Host "Updating Cloud Run configuration..." -ForegroundColor Blue
 # Deploy to Cloud Run using YAML configuration
 Write-Host "Deploying to Cloud Run..." -ForegroundColor Blue
 gcloud run services replace cloudrun-mcpserver-deploy.yaml --region $Region
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Cloud Run deployment failed"
+    Remove-Item -Path cloudrun-mcpserver-deploy.yaml -Force -ErrorAction SilentlyContinue
+    exit 1
+}
 
 # Get service URL
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $Region --format 'value(status.url)'
+if (-not $SERVICE_URL) {
+    Write-Error "Failed to retrieve service URL"
+    exit 1
+}
 
 Write-Host "MCP Server deployment completed!" -ForegroundColor Green
 Write-Host "Service URL: $SERVICE_URL" -ForegroundColor Cyan
