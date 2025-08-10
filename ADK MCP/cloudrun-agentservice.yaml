@@ -9,13 +9,13 @@ spec:
   template:
     metadata:
       annotations:
-        # Cloud Run configuration
+        # Consolidated Security Architecture - optimized resource allocation
         run.googleapis.com/cpu-throttling: "false"
         run.googleapis.com/memory: "2Gi"
         run.googleapis.com/cpu: "1"
         run.googleapis.com/max-scale: "10"
         run.googleapis.com/min-scale: "1"  # Keep at least 1 instance warm
-        # Startup probe configuration
+        # Performance optimization for consolidated security
         run.googleapis.com/startup-cpu-boost: "true"
     spec:
       serviceAccountName: your-service-account@your-project.iam.gserviceaccount.com
@@ -30,16 +30,25 @@ spec:
           value: "gemini-1.5-flash"
         - name: AGENT_NAME
           value: "GreetingAgent"
-        - name: TEMPLATE_METHOD_SECURITY_ENABLED
+        # Consolidated Agent Security Configuration (ConsolidatedAgentSecurity)
+        - name: ENABLE_PROMPT_PROTECTION
           value: "true"
-        - name: TEMPLATE_METHOD_SECURITY_LEVEL
-          value: "HIGH"
-        - name: TEMPLATE_METHOD_REQUEST_FILTERING
+        - name: ENABLE_CONTEXT_VALIDATION
           value: "true"
-        - name: TEMPLATE_METHOD_RESPONSE_FILTERING
+        - name: ENABLE_MCP_VERIFICATION
           value: "true"
+        - name: ENABLE_RESPONSE_SANITIZATION
+          value: "true"
+        - name: MAX_CONTEXT_SIZE
+          value: "10000"
+        - name: PROMPT_INJECTION_THRESHOLD
+          value: "0.7"
+        - name: VERIFY_MCP_SIGNATURES
+          value: "true"
+        - name: TRUST_UNSIGNED_RESPONSES
+          value: "false"
         - name: AGENT_INSTRUCTION
-          value: "You are a friendly greeting agent. Welcome users warmly and help them with their requests."
+          value: "You are a friendly greeting agent with secure MCP framework integration. Welcome users warmly and help them with their requests."
         resources:
           limits:
             memory: "2Gi"

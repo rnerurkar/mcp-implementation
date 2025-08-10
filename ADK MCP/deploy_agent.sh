@@ -12,12 +12,12 @@ SERVICE_NAME="agent-greeting-service"
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 DOCKERFILE="Dockerfile.agentservice"
 
-echo "🏛️ Deploying Template Method Agent Service to Cloud Run"
+echo "🔒 Deploying Consolidated Agent Service to Cloud Run"
 echo "Project: $PROJECT_ID"
 echo "Region: $REGION"
 echo "Service: $SERVICE_NAME"
-echo "Architecture: Template Method Pattern"
-echo "Security: 4 Agent + 12 MCP Controls"
+echo "Architecture: Consolidated Security (70% code reduction)"
+echo "Security: 4 Agent Controls + MCP Framework Delegation"
 echo "Dockerfile: $DOCKERFILE"
 echo "----------------------------------------"
 
@@ -44,15 +44,19 @@ gcloud run deploy $SERVICE_NAME \
     --min-instances 1 \
     --max-instances 10 \
     --timeout 300 \
-    --set-env-vars "AGENT_MODEL=gemini-1.5-flash,AGENT_NAME=GreetingAgent,TEMPLATE_METHOD_SECURITY_ENABLED=true,TEMPLATE_METHOD_SECURITY_LEVEL=HIGH,TEMPLATE_METHOD_REQUEST_FILTERING=true,TEMPLATE_METHOD_RESPONSE_FILTERING=true" \
+    --set-env-vars "AGENT_MODEL=gemini-1.5-flash,AGENT_NAME=GreetingAgent,ENABLE_PROMPT_PROTECTION=true,ENABLE_CONTEXT_VALIDATION=true,ENABLE_MCP_VERIFICATION=true,ENABLE_RESPONSE_SANITIZATION=true,MAX_CONTEXT_SIZE=10000,PROMPT_INJECTION_THRESHOLD=0.7,VERIFY_MCP_SIGNATURES=true,TRUST_UNSIGNED_RESPONSES=false" \
     --port 8080
 
 # Get service URL
 SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
 
-echo "✅ Deployment completed!"
-echo "🌐 Service URL: $SERVICE_URL"
-echo "🔍 Health Check: $SERVICE_URL/health"
+echo "✅ Consolidated Agent Service deployment completed!"
+echo "�️ Architecture: ConsolidatedAgentSecurity"
+echo "🛡️ Security: MCP Framework Integration"
+echo "�🌐 Service URL: $SERVICE_URL"
+echo "� Health Check: $SERVICE_URL/health"
+echo "📚 API Documentation: $SERVICE_URL/docs"
+echo "🛡️ Security Status: $SERVICE_URL/security/status"
 echo "📚 API Docs: $SERVICE_URL/docs"
 echo "----------------------------------------"
 
