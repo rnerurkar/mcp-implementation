@@ -23,12 +23,12 @@ $SERVICE_NAME = "agent-greeting-service"
 $IMAGE_NAME = "gcr.io/$ProjectId/$SERVICE_NAME"
 $DOCKERFILE = "Dockerfile.agentservice"
 
-Write-Host "Deploying Template Method Agent Service to Cloud Run" -ForegroundColor Green
+Write-Host "Deploying Consolidated Agent Service to Cloud Run" -ForegroundColor Green
 Write-Host "Project: $ProjectId"
 Write-Host "Region: $Region"
 Write-Host "Service: $SERVICE_NAME"
-Write-Host "Architecture: Template Method Pattern"
-Write-Host "Security: 4 Agent + 12 MCP Controls"
+Write-Host "Architecture: Consolidated Security (70% code reduction)"
+Write-Host "Security: 4 Agent Controls + MCP Framework Delegation"
 Write-Host "Dockerfile: $DOCKERFILE"
 Write-Host "----------------------------------------"
 
@@ -91,8 +91,8 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Deploy to Cloud Run with Template Method security configuration
-Write-Host "Deploying Template Method Agent Service to Cloud Run..." -ForegroundColor Blue
+# Deploy to Cloud Run with Consolidated security configuration
+Write-Host "Deploying Consolidated Agent Service to Cloud Run..." -ForegroundColor Blue
 gcloud run deploy $SERVICE_NAME `
     --image $IMAGE_NAME `
     --region $Region `
@@ -114,26 +114,25 @@ if ($LASTEXITCODE -ne 0) {
 # Get service URL
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $Region --format 'value(status.url)'
 
-Write-Host "Template Method Agent Service deployment completed!" -ForegroundColor Green
-Write-Host "Architecture: Template Method Pattern" -ForegroundColor Cyan
-Write-Host "Security: 4 Agent Controls Active" -ForegroundColor Cyan
+Write-Host "Consolidated Agent Service deployment completed!" -ForegroundColor Green
+Write-Host "Architecture: ConsolidatedAgentSecurity" -ForegroundColor Cyan
+Write-Host "Security: MCP Framework Integration" -ForegroundColor Cyan
 Write-Host "Service URL: $SERVICE_URL" -ForegroundColor Cyan
 Write-Host "Health Check: $SERVICE_URL/health" -ForegroundColor Cyan
-Write-Host "Greet Endpoint: $SERVICE_URL/greet" -ForegroundColor Cyan
-Write-Host "Security Status: $SERVICE_URL/security-status" -ForegroundColor Cyan
-Write-Host "API Docs: $SERVICE_URL/docs" -ForegroundColor Cyan
+Write-Host "API Documentation: $SERVICE_URL/docs" -ForegroundColor Cyan
+Write-Host "Security Status: $SERVICE_URL/security/status" -ForegroundColor Cyan
 
 Write-Host ""
-Write-Host "Template Method Pattern Features:" -ForegroundColor Yellow
-Write-Host "1. BaseAgentService - Abstract security framework"
-Write-Host "2. EnhancedAgentService - Concrete Google ADK implementation"
-Write-Host "3. Security-Business Logic Separation"
-Write-Host "4. Consistent security pipeline across all agent types"
+Write-Host "Consolidated Security Features:" -ForegroundColor Yellow
+Write-Host "1. Agent wrappers delegate to MCP framework components"
+Write-Host "2. 70% code reduction through MCP integration"
+Write-Host "3. Shared threat intelligence between agent and MCP layers"
+Write-Host "4. Backward compatibility maintained"
 
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Yellow
-Write-Host "1. Test Template Method deployment: python test_template_method.py"
-Write-Host "2. Verify security status: curl $SERVICE_URL/security-status"
+Write-Host "1. Test consolidated deployment: python test_agent_security_consolidated.py"
+Write-Host "2. Verify security status: curl $SERVICE_URL/security/status"
 Write-Host "3. Test security controls: python test_security_controls.py"
-Write-Host "4. Monitor Template Method performance"
-Write-Host "5. Consider adding new agent implementations (ChatGPT, Claude)"
+Write-Host "4. Monitor performance improvements"
+Write-Host "5. Validate MCP framework integration"

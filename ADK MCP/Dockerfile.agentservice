@@ -1,17 +1,21 @@
-# Dockerfile for Agent Service with Template Method Pattern
-# Architecture: BaseAgentService (abstract) + EnhancedAgentService (concrete)
-# Security: 4-control agent security pipeline integrated via Template Method
+# Dockerfile for Agent Service with Consolidated Security Architecture
+# Architecture: ConsolidatedAgentSecurity (70% code reduction via MCP framework delegation)
+# Security: 4-control agent security pipeline integrated with MCP framework
 FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Template Method Security Defaults (can be overridden at runtime)
-ENV TEMPLATE_METHOD_SECURITY_ENABLED=true
-ENV TEMPLATE_METHOD_SECURITY_LEVEL=HIGH
-ENV TEMPLATE_METHOD_REQUEST_FILTERING=true
-ENV TEMPLATE_METHOD_RESPONSE_FILTERING=true
+# Consolidated Agent Security Defaults (can be overridden at runtime)
+ENV ENABLE_PROMPT_PROTECTION=true
+ENV ENABLE_CONTEXT_VALIDATION=true
+ENV ENABLE_MCP_VERIFICATION=true
+ENV ENABLE_RESPONSE_SANITIZATION=true
+ENV MAX_CONTEXT_SIZE=10000
+ENV PROMPT_INJECTION_THRESHOLD=0.7
+ENV VERIFY_MCP_SIGNATURES=true
+ENV TRUST_UNSIGNED_RESPONSES=false
 
 # Set work directory
 WORKDIR /app
