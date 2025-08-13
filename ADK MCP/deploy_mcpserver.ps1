@@ -132,6 +132,45 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Configure authentication - disable unauthenticated access for security
+Write-Host "Configuring Cloud Run authentication..." -ForegroundColor Blue
+gcloud run services update $SERVICE_NAME --region $Region --no-allow-unauthenticated
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Failed to disable unauthenticated access. Service may be publicly accessible."
+}
+
+# Create service accounts if they don't exist
+Write-Host "Ensuring service accounts exist..." -ForegroundColor Blue
+
+# Check if MCP server service account exists
+$MCP_SA = "mcp-server-service-account@$ProjectId.iam.gserviceaccount.com"
+$SA_EXISTS = gcloud iam service-accounts describe $MCP_SA 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Creating MCP server service account..." -ForegroundColor Yellow
+    gcloud iam service-accounts create mcp-server-service-account --display-name "MCP Server Service Account"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to create MCP server service account"
+    }
+}
+
+# Check if agent service account exists
+$AGENT_SA = "agent-service-account@$ProjectId.iam.gserviceaccount.com"
+$SA_EXISTS = gcloud iam service-accounts describe $AGENT_SA 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Creating agent service account..." -ForegroundColor Yellow
+    gcloud iam service-accounts create agent-service-account --display-name "Agent Service Account"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to create agent service account"
+    }
+}
+
+# Grant agent service account permission to invoke MCP server
+Write-Host "Configuring IAM permissions..." -ForegroundColor Blue
+gcloud run services add-iam-policy-binding $SERVICE_NAME --region $Region --member "serviceAccount:$AGENT_SA" --role "roles/run.invoker"
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Failed to grant agent service account invoker permission"
+}
+
 # Get service URL
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $Region --format 'value(status.url)'
 if (-not $SERVICE_URL) {

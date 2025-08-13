@@ -25,7 +25,7 @@ google-cloud-aiplatform[agent-engines]>=1.95.1
 # Reorganized security section with clear labeling
 PyJWT==2.10.1                          # GoogleCloudTokenValidator
 cryptography==45.0.5                   # ContextSecurity, RSA operations
-jsonschema==4.23.0                     # SchemaValidator input validation
+jsonschema==4.23.0                     # SchemaValidator JSON-RPC 2.0 validation
 ```
 
 #### **3. Added Optional Dependencies Documentation**
@@ -45,20 +45,17 @@ jsonschema==4.23.0                     # SchemaValidator input validation
 ### **📦 Dependencies by Security Control**
 
 #### **Core Security Controls Dependencies**
-1. **InputSanitizer**: `requests` (Model Armor API), built-in `re` module
+1. **InputSanitizer**: Built-in `re` module for regex pattern matching
 2. **GoogleCloudTokenValidator**: `PyJWT`, `google-auth`, `cryptography`
-3. **SchemaValidator**: `jsonschema`, built-in validation
+3. **SchemaValidator**: `jsonschema`, JSON-RPC 2.0 protocol validation
 4. **CredentialManager**: `google-cloud-secret-manager`
-5. **ContextSanitizer**: Built-in `re`, `json` modules
-6. **ContextSecurity**: `cryptography`, `google-cloud-kms`
-7. **OPAPolicyClient**: `requests` for OPA HTTP API
+5. **ContextSanitizer**: Built-in `re`, `json` modules, `requests` (Model Armor API for tool response protection)
+6. **OPAPolicyClient**: `requests` for OPA HTTP API
 
 #### **Advanced Security Controls Dependencies**  
-8. **InstallerSecurityValidator**: `requests`, `hashlib`, `hmac`, `urllib.parse`
-9. **ServerNameRegistry**: `hashlib`, `hmac`, `datetime`
-10. **RemoteServerAuthenticator**: `cryptography`, `requests`
-11. **ToolExposureController**: `datetime`, built-in modules
-12. **SemanticMappingValidator**: `hashlib`, optional ML libraries
+7. **ServerNameRegistry**: `hashlib`, `hmac`, `datetime`
+8. **ToolExposureController**: `datetime`, built-in modules
+9. **SemanticMappingValidator**: `hashlib`, optional ML libraries
 
 ### **🧪 Testing Dependencies**
 ```

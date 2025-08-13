@@ -3,8 +3,9 @@ kind: Service
 metadata:
   name: mcp-server-service
   annotations:
-    run.googleapis.com/ingress: all
-    run.googleapis.com/ingress-status: all
+    # Configure for secure service-to-service authentication
+    run.googleapis.com/ingress: internal
+    run.googleapis.com/ingress-status: internal
 spec:
   template:
     metadata:
@@ -40,18 +41,25 @@ spec:
         env:
         - name: PORT
           value: "8000"
-        - name: AZURE_AUDIENCE
-          value: "api://your-mcp-server-app-id"
-        - name: AZURE_ISSUER
-          value: "https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0"
-        - name: AZURE_SCOPES
-          value: "api://your-mcp-server-app-id/.default"
+        # Cloud Run automatic authentication configuration
+        - name: EXPECTED_AUDIENCE
+          value: "https://mcp-server-service-PROJECT_ID.a.run.app"
         - name: GCP_PROJECT
           value: "PROJECT_ID"
+        # Allowed service accounts for additional validation (optional)
+        - name: ALLOWED_SERVICE_ACCOUNTS
+          value: "agent-service-account@PROJECT_ID.iam.gserviceaccount.com,mcp-client@PROJECT_ID.iam.gserviceaccount.com"
+        # Security configuration
+        - name: SECURITY_LEVEL
+          value: "cloud_run_managed"
+        - name: AUTHENTICATION_MODE
+          value: "cloud_run_automatic"
+        # Optional business rules
+        - name: BUSINESS_HOURS_ONLY
+          value: "false"
+        # Other service configurations
         - name: OPA_URL
           value: "http://localhost:8181"
-        - name: SECURITY_LEVEL
-          value: "high"
         - name: KMS_KEY_PATH
           value: "projects/PROJECT_ID/locations/global/keyRings/mcp-ring/cryptoKeys/mcp-key"
         resources:
