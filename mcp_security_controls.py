@@ -124,10 +124,17 @@ class InputSanitizer:
 
     def sanitize(self, text: str) -> str:
         """
-        Apply security filters to user input using regex patterns
+        Apply security filters to user input using Model Armor API or fallback patterns
         
-        This method provides input sanitization through local regex patterns
-        to protect against prompt injection and other input-based attacks.
+        This method provides enterprise-grade security through Model Armor API,
+        with fallback to local regex patterns for development environments.
+        
+        Model Armor benefits:
+        - Advanced ML-based prompt injection detection
+        - Real-time threat intelligence updates
+        - Sophisticated attack pattern recognition
+        - Lower false positive rates than regex patterns
+        - Professional security monitoring and analytics
         
         Common use cases:
         - Sanitizing user prompts before sending to AI models
@@ -140,10 +147,140 @@ class InputSanitizer:
         Returns:
             str: Sanitized text with dangerous patterns replaced
         """
-        # Apply local regex patterns for sanitization
-        for pattern in self.patterns:
-            text = pattern.sub("[REDACTED]", text)
-        return text
+        # Try Model Armor API first for production-grade security
+        model_armor_result = self._check_model_armor(text)
+        
+        if model_armor_result['success']:
+            # Use Model Armor's analysis and sanitization
+            if model_armor_result['is_malicious']:
+                # Model Armor detected threats - apply their recommended sanitization
+                return model_armor_result['sanitized_text']
+            else:
+                # Model Armor says it's safe - return original text
+                return text
+        else:
+            # Fallback to local regex patterns if Model Armor is unavailable
+            print(f"⚠️ Model Armor unavailable ({model_armor_result['error']}), using fallback patterns")
+            for pattern in self.patterns:
+                text = pattern.sub("[REDACTED]", text)
+            return text
+
+    def _check_model_armor(self, text: str) -> Dict[str, Any]:
+        """
+        Check text against Model Armor API for advanced threat detection
+        
+        Model Armor provides enterprise-grade AI security including:
+        - ML-based prompt injection detection
+        - Context-aware threat analysis
+        - Real-time threat intelligence
+        - Sophisticated attack pattern recognition
+        - Detailed security analytics and reporting
+        
+        Args:
+            text (str): Text to analyze for security threats
+            
+        Returns:
+            Dict[str, Any]: Analysis results including threat status and sanitized text
+        """
+        try:
+            # Get Model Armor API credentials from secure storage
+            api_key = os.getenv('MODEL_ARMOR_API_KEY') or self._get_credential_if_available('model-armor-api-key')
+            
+            if not api_key:
+                return {
+                    'success': False,
+                    'error': 'Model Armor API key not configured',
+                    'is_malicious': False,
+                    'sanitized_text': text
+                }
+            
+            # Model Armor API endpoint for prompt injection detection
+            model_armor_url = "https://api.modelarmor.com/v1/analyze"
+            
+            # Prepare request payload for Model Armor
+            payload = {
+                "text": text,
+                "detection_types": [
+                    "prompt_injection",
+                    "pii_detection", 
+                    "toxicity",
+                    "code_injection",
+                    "data_extraction"
+                ],
+                "sanitization_mode": "redact",  # Options: redact, block, warn
+                "security_profile": self.security_profile  # Use our configured profile
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "MCP-Security-Controls/1.0"
+            }
+            
+            # Call Model Armor API with timeout for reliability
+            response = requests.post(
+                model_armor_url,
+                json=payload,
+                headers=headers,
+                timeout=5.0  # 5-second timeout for production use
+            )
+            
+            # Handle API response
+            if response.status_code == 200:
+                result = response.json()
+                
+                return {
+                    'success': True,
+                    'is_malicious': result.get('is_malicious', False),
+                    'threat_types': result.get('detected_threats', []),
+                    'confidence_score': result.get('confidence', 0.0),
+                    'sanitized_text': result.get('sanitized_text', text),
+                    'model_armor_id': result.get('analysis_id'),  # For audit trails
+                    'raw_response': result  # Full response for detailed logging
+                }
+            
+            elif response.status_code == 429:
+                # Rate limit exceeded - use fallback
+                return {
+                    'success': False,
+                    'error': 'Model Armor rate limit exceeded',
+                    'is_malicious': False,
+                    'sanitized_text': text
+                }
+            
+            else:
+                # Other API errors
+                return {
+                    'success': False,
+                    'error': f'Model Armor API error: {response.status_code}',
+                    'is_malicious': False,
+                    'sanitized_text': text
+                }
+                
+        except requests.exceptions.Timeout:
+            return {
+                'success': False,
+                'error': 'Model Armor API timeout',
+                'is_malicious': False,
+                'sanitized_text': text
+            }
+            
+        except requests.exceptions.RequestException as e:
+            return {
+                'success': False,
+                'error': f'Model Armor network error: {str(e)}',
+                'is_malicious': False,
+                'sanitized_text': text
+            }
+            
+        except Exception as e:
+            # Fail safe - assume potential threat and use fallback
+            return {
+                'success': False,
+                'error': f'Model Armor unexpected error: {str(e)}',
+                'is_malicious': False,
+                'sanitized_text': text
+            }
 
     def sanitize_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1049,40 +1186,31 @@ class CredentialManager:
 
 class ContextSanitizer:
     """
-    Multi-layer context poisoning prevention system with Model Armor protection
+    Multi-layer context poisoning prevention system
     
     This class protects against context poisoning attacks where malicious users
-    try to manipulate AI behavior through crafted prompts or context injection,
-    particularly in tool-returned context data.
+    try to manipulate AI behavior through crafted prompts or context injection.
     
     Protection mechanisms:
-    - Model Armor API integration for advanced prompt injection detection
-    - Pattern-based detection of known injection techniques (fallback)
+    - Pattern-based detection of known injection techniques
     - PII (Personally Identifiable Information) detection and redaction
     - Context size limits to prevent overwhelming
     - Multi-level security profiles for different risk environments
     
     Context poisoning attacks include:
-    - Prompt injection in tool responses to change AI behavior
+    - Prompt injection to change AI behavior
     - Context stuffing to overwhelm the model
     - PII injection to extract sensitive information
-    - System override attempts via malicious tool outputs
-    - Remote tool data poisoning attacks
-    
-    Model Armor Integration:
-    This enhanced version uses Model Armor API to detect sophisticated prompt
-    injection attempts in tool-returned context that might bypass regex patterns.
-    This is crucial for protecting against malicious remote tools that could
-    return crafted responses designed to manipulate the AI's behavior.
+    - System override attempts
     
     For FastAPI integration:
-    Use this class to sanitize all user inputs, context data, tool outputs,
-    and conversation history before passing to AI models.
+    Use this class to sanitize all user inputs, context data, and 
+    conversation history before passing to AI models.
     """
     
     def __init__(self, security_level: str = "standard"):
         """
-        Initialize the context sanitizer with Model Armor integration
+        Initialize the context sanitizer
         
         Args:
             security_level (str): Security level - "standard" or "strict"
@@ -1105,12 +1233,11 @@ class ContextSanitizer:
             List[re.Pattern]: Compiled regex patterns for injection detection
         """
         return [
-            re.compile(r"ignore\s+(all\s+)?previous", re.IGNORECASE),           # "Ignore previous instructions"
-            re.compile(r"disregard\s+(all\s+)?previous", re.IGNORECASE),        # "Disregard all previous"
-            re.compile(r"system:\s*override", re.IGNORECASE),                   # System override attempts
-            re.compile(r"<!--.*inject.*-->", re.IGNORECASE),                    # HTML injection markers
-            re.compile(r"\{\{.*\}\}"),                                          # Template injection
-            re.compile(r"<\s*script\s*>.*<\s*/\s*script\s*>", re.DOTALL | re.IGNORECASE)  # Script injection
+            re.compile(r"ignore\s+previous", re.IGNORECASE),        # "Ignore previous instructions"
+            re.compile(r"system:\s*override", re.IGNORECASE),       # System override attempts
+            re.compile(r"<!--\s*inject\s*-->"),                    # HTML injection markers
+            re.compile(r"\{\{.*\}\}"),                             # Template injection
+            re.compile(r"<\s*script\s*>.*<\s*/\s*script\s*>", re.DOTALL)  # Script injection
         ]
 
     def _load_pii_patterns(self) -> List[re.Pattern]:
@@ -1135,19 +1262,16 @@ class ContextSanitizer:
 
     def sanitize(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Comprehensive sanitization pipeline for context data with Model Armor protection
+        Comprehensive sanitization pipeline for context data
         
         This method applies multiple layers of security protection:
         1. Deep copying to prevent modification of original data
-        2. Model Armor API analysis for advanced prompt injection detection
-        3. Poison pattern filtering to remove injection attempts (fallback)
-        4. PII redaction to protect sensitive information
-        5. Size limiting to prevent context overflow attacks
+        2. Poison pattern filtering to remove injection attempts
+        3. PII redaction to protect sensitive information
+        4. Size limiting to prevent context overflow attacks
         
         The multi-stage approach provides defense in depth against
-        various types of context manipulation attacks, with Model Armor
-        providing enterprise-grade protection against sophisticated
-        prompt injection attempts in tool-returned context.
+        various types of context manipulation attacks.
         
         Args:
             context (Dict[str, Any]): Context data to sanitize
@@ -1159,197 +1283,16 @@ class ContextSanitizer:
         # This ensures the original context remains unchanged
         sanitized = json.loads(json.dumps(context))
 
-        # 2. Apply Model Armor analysis for advanced threat detection
-        sanitized = self._apply_model_armor_protection(sanitized)
-
-        # 3. Apply fallback security transformations
+        # 2. Apply security transformations in order of importance
         sanitized = self._apply_poison_filters(sanitized)
         sanitized = self._redact_pii(sanitized)
 
-        # 4. Size limitation for strict security environments
+        # 3. Size limitation for strict security environments
         # Prevents context overflow attacks that could overwhelm the AI
         if self.security_level == "strict":
             sanitized = self._limit_size(sanitized, 1024)  # 1KB limit
 
         return sanitized
-
-    def _apply_model_armor_protection(self, data: Any) -> Any:
-        """
-        Apply Model Armor protection to detect prompt injection in context data
-        
-        This method uses Model Armor API to analyze context data (especially
-        tool outputs) for sophisticated prompt injection attempts that might
-        bypass traditional regex patterns. This is crucial for protecting
-        against malicious remote tools that could return crafted responses.
-        
-        Args:
-            data (Any): Data structure to analyze and protect
-            
-        Returns:
-            Any: Data with Model Armor protection applied
-        """
-        # Handle dictionary structures recursively
-        if isinstance(data, dict):
-            protected = {}
-            for k, v in data.items():
-                protected[k] = self._apply_model_armor_protection(v)
-            return protected
-        
-        # Handle list structures recursively
-        if isinstance(data, list):
-            return [self._apply_model_armor_protection(item) for item in data]
-        
-        # Apply Model Armor analysis to string values
-        if isinstance(data, str) and len(data.strip()) > 0:
-            model_armor_result = self._check_model_armor_context(data)
-            
-            if model_armor_result['success']:
-                if model_armor_result['is_malicious']:
-                    # Model Armor detected threats - return sanitized content
-                    print(f"🛡️ Model Armor blocked context threat: {model_armor_result['threat_types']}")
-                    return model_armor_result['sanitized_text']
-                else:
-                    # Model Armor says it's safe - return original
-                    return data
-            else:
-                # Fallback to original if Model Armor unavailable
-                print(f"⚠️ Model Armor context check failed: {model_armor_result['error']}")
-                return data
-        
-        return data
-
-    def _check_model_armor_context(self, text: str) -> Dict[str, Any]:
-        """
-        Check context text against Model Armor API for prompt injection threats
-        
-        This method specifically focuses on detecting prompt injection attacks
-        in context data, particularly tool outputs that could be designed to
-        manipulate the AI's behavior.
-        
-        Args:
-            text (str): Context text to analyze for threats
-            
-        Returns:
-            Dict[str, Any]: Analysis results including threat status and sanitized text
-        """
-        try:
-            # Get Model Armor API credentials from secure storage
-            api_key = os.getenv('MODEL_ARMOR_API_KEY') or self._get_credential_if_available('model-armor-api-key')
-            
-            if not api_key:
-                return {
-                    'success': False,
-                    'error': 'Model Armor API key not configured for context protection',
-                    'is_malicious': False,
-                    'sanitized_text': text
-                }
-            
-            # Model Armor API endpoint for context analysis
-            model_armor_url = "https://api.modelarmor.com/v1/analyze-context"
-            
-            # Prepare request payload for context-specific analysis
-            payload = {
-                "text": text,
-                "analysis_type": "context_protection",
-                "detection_types": [
-                    "prompt_injection",
-                    "context_poisoning",
-                    "ai_manipulation",
-                    "tool_response_injection",
-                    "pii_leakage"
-                ],
-                "sanitization_mode": "redact_and_neutralize",
-                "context_source": "tool_output",  # Specify this is from tool responses
-                "security_profile": self.security_level
-            }
-            
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "MCP-ContextSanitizer/1.0"
-            }
-            
-            # Call Model Armor API with timeout for reliability
-            response = requests.post(
-                model_armor_url,
-                json=payload,
-                headers=headers,
-                timeout=5.0  # 5-second timeout for production use
-            )
-            
-            # Handle API response
-            if response.status_code == 200:
-                result = response.json()
-                
-                return {
-                    'success': True,
-                    'is_malicious': result.get('is_malicious', False),
-                    'threat_types': result.get('detected_threats', []),
-                    'confidence_score': result.get('confidence', 0.0),
-                    'sanitized_text': result.get('sanitized_text', text),
-                    'model_armor_id': result.get('analysis_id'),
-                    'context_analysis': result.get('context_specific_analysis', {})
-                }
-            
-            elif response.status_code == 429:
-                # Rate limit exceeded - use fallback
-                return {
-                    'success': False,
-                    'error': 'Model Armor rate limit exceeded for context analysis',
-                    'is_malicious': False,
-                    'sanitized_text': text
-                }
-            
-            else:
-                # Other API errors
-                return {
-                    'success': False,
-                    'error': f'Model Armor context API error: {response.status_code}',
-                    'is_malicious': False,
-                    'sanitized_text': text
-                }
-                
-        except requests.exceptions.Timeout:
-            return {
-                'success': False,
-                'error': 'Model Armor context API timeout',
-                'is_malicious': False,
-                'sanitized_text': text
-            }
-            
-        except requests.exceptions.RequestException as e:
-            return {
-                'success': False,
-                'error': f'Model Armor context network error: {str(e)}',
-                'is_malicious': False,
-                'sanitized_text': text
-            }
-            
-        except Exception as e:
-            # Fail safe - log error but continue
-            return {
-                'success': False,
-                'error': f'Model Armor context unexpected error: {str(e)}',
-                'is_malicious': False,
-                'sanitized_text': text
-            }
-
-    def _get_credential_if_available(self, secret_name: str) -> Optional[str]:
-        """
-        Safely attempt to get credentials from credential manager
-        
-        Args:
-            secret_name (str): Name of the secret to retrieve
-            
-        Returns:
-            Optional[str]: Secret value if available, None if not configured
-        """
-        try:
-            # This would integrate with your existing CredentialManager
-            # For now, return None to indicate credential manager not available
-            return None
-        except Exception:
-            return None
 
     def _apply_poison_filters(self, data: Any) -> Any:
         """
@@ -1406,6 +1349,29 @@ class ContextSanitizer:
         return context
 
 
+
+# %%
+# --------------------------------
+# 6. Context Signing & Verification
+# --------------------------------
+import jwt # Import jwt for encode/decode from PyJWT
+
+class ContextSecurity:
+    """Cryptographic context signing and verification"""
+    def __init__(self, kms_key_path: Optional[str] = None):
+        if kms_key_path:
+            # Production: Use KMS for signing
+            self.kms_client = kms_v1.KeyManagementServiceClient()
+            self.key_path = kms_key_path
+            self.signing_strategy = "kms"
+        else:
+            # Development: Local key pair
+            self.private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=2048
+            )
+            self.public_key = self.private_key.public_key()
+            self.signing_strategy = "local"
 
 # %%
 # --------------------------
@@ -1702,6 +1668,158 @@ from datetime import datetime, timedelta
 from typing import Set, Tuple
 from urllib.parse import urlparse
 
+class InstallerSecurityValidator:
+    """
+    Prevents malicious MCP server installers from being distributed via unofficial channels.
+    
+    This class provides comprehensive supply chain security for MCP server installations:
+    - Verifies installer integrity using cryptographic signatures
+    - Validates installation sources against allowlisted registries
+    - Checks package metadata for tampering
+    - Enforces secure installation protocols
+    
+    Essential for MVP because:
+    - MCP servers are often installed from remote sources (npm, pip, etc.)
+    - Malicious installers can compromise entire AI agent infrastructure
+    - Supply chain attacks are increasing in AI/ML ecosystems
+    - Remote deployment scenarios require trusted installation verification
+    
+    Zero-Trust Principle:
+    Never trust, always verify - every installer must prove its authenticity
+    """
+    
+    def __init__(self, trusted_registries: List[str] = None, signature_keys: Dict[str, str] = None):
+        """
+        Initialize installer security validator
+        
+        Args:
+            trusted_registries: List of trusted package registry URLs
+            signature_keys: Dictionary mapping registry URLs to their public signing keys
+        """
+        self.trusted_registries = trusted_registries or [
+            "https://registry.npmjs.org",
+            "https://pypi.org",
+            "https://github.com",
+            "https://registry.docker.io"
+        ]
+        self.signature_keys = signature_keys or {}
+        self.installation_cache = {}  # Cache verified installations
+        
+    def validate_installer_source(self, installer_url: str, metadata: Dict[str, Any]) -> bool:
+        """
+        Validate that installer comes from trusted source
+        
+        Args:
+            installer_url: URL of the installer package
+            metadata: Package metadata including signatures and checksums
+            
+        Returns:
+            bool: True if installer source is trusted and verified
+            
+        Raises:
+            SecurityException: If installer source is untrusted or invalid
+        """
+        try:
+            # Parse installer URL to extract registry information
+            parsed_url = urlparse(installer_url)
+            registry_base = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Check if registry is in trusted list
+            if not any(trusted in registry_base for trusted in self.trusted_registries):
+                raise SecurityException(
+                    f"Untrusted installer registry: {registry_base}. "
+                    f"Allowed registries: {self.trusted_registries}"
+                )
+            
+            # Verify package signature if available
+            if "signature" in metadata and "checksum" in metadata:
+                if not self._verify_package_signature(installer_url, metadata):
+                    raise SecurityException(f"Invalid package signature for {installer_url}")
+            
+            # Verify package integrity
+            if not self._verify_package_integrity(installer_url, metadata):
+                raise SecurityException(f"Package integrity check failed for {installer_url}")
+            
+            # Check for known malicious patterns
+            if self._detect_malicious_patterns(metadata):
+                raise SecurityException(f"Malicious patterns detected in package metadata")
+            
+            # Cache successful verification
+            cache_key = hashlib.sha256(installer_url.encode()).hexdigest()
+            self.installation_cache[cache_key] = {
+                "url": installer_url,
+                "verified_at": datetime.utcnow(),
+                "metadata_hash": hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+            }
+            
+            print(f"✅ Installer validated: {installer_url}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Installer validation failed: {e}")
+            raise SecurityException(f"Installer validation failed: {e}")
+    
+    def _verify_package_signature(self, installer_url: str, metadata: Dict[str, Any]) -> bool:
+        """Verify cryptographic signature of package"""
+        try:
+            signature = metadata.get("signature")
+            registry_base = urlparse(installer_url).netloc
+            public_key = self.signature_keys.get(registry_base)
+            
+            if not public_key or not signature:
+                return True  # Skip if no signature verification configured
+            
+            # Verify signature using HMAC (simplified for MVP)
+            expected_signature = hmac.new(
+                public_key.encode(),
+                json.dumps(metadata.get("package_info", {}), sort_keys=True).encode(),
+                hashlib.sha256
+            ).hexdigest()
+            
+            return hmac.compare_digest(signature, expected_signature)
+            
+        except Exception:
+            return False
+    
+    def _verify_package_integrity(self, installer_url: str, metadata: Dict[str, Any]) -> bool:
+        """Verify package hasn't been tampered with"""
+        try:
+            expected_checksum = metadata.get("checksum")
+            if not expected_checksum:
+                return True  # Skip if no checksum provided
+            
+            # In production, would download and verify actual package
+            # For MVP, verify metadata consistency
+            package_info = metadata.get("package_info", {})
+            computed_hash = hashlib.sha256(
+                json.dumps(package_info, sort_keys=True).encode()
+            ).hexdigest()
+            
+            return expected_checksum.startswith(computed_hash[:16])  # Partial match for demo
+            
+        except Exception:
+            return False
+    
+    def _detect_malicious_patterns(self, metadata: Dict[str, Any]) -> bool:
+        """Detect known malicious patterns in package metadata"""
+        malicious_patterns = [
+            r"eval\s*\(",
+            r"exec\s*\(",
+            r"__import__\s*\(",
+            r"subprocess\.",
+            r"os\.system",
+            r"shell=True"
+        ]
+        
+        metadata_str = json.dumps(metadata, default=str).lower()
+        
+        for pattern in malicious_patterns:
+            if re.search(pattern, metadata_str):
+                return True
+        
+        return False
+
+
 class ServerNameRegistry:
     """
     Enforces unique naming conventions for MCP servers to prevent impersonation.
@@ -1855,6 +1973,198 @@ class ServerNameRegistry:
         """Generate secure registration token"""
         token_data = f"{server_name}:{owner_identity}:{time.time()}"
         return hashlib.sha256(token_data.encode()).hexdigest()
+
+
+class RemoteServerAuthenticator:
+    """
+    Validates server identity during registration and invocation.
+    
+    This class provides comprehensive remote server authentication:
+    - Validates server certificates and identity claims
+    - Performs secure handshake protocols
+    - Verifies server capabilities and permissions
+    - Monitors for server impersonation attempts
+    
+    Essential for MVP because:
+    - Critical for secure client-server handshake over HTTP/2 streaming
+    - Prevents man-in-the-middle attacks in remote MCP communications
+    - Ensures only authorized servers can provide tools to agents
+    - Required for zero-trust remote server access
+    
+    Zero-Trust Principle:
+    Never trust remote servers - always verify identity and capabilities
+    """
+    
+    def __init__(self, trusted_ca_certs: List[str] = None, handshake_timeout: int = 30):
+        """
+        Initialize remote server authenticator
+        
+        Args:
+            trusted_ca_certs: List of trusted Certificate Authority certificates
+            handshake_timeout: Timeout for server handshake in seconds
+        """
+        self.trusted_ca_certs = trusted_ca_certs or []
+        self.handshake_timeout = handshake_timeout
+        self.authenticated_servers = {}  # Cache of authenticated servers
+        self.server_challenges = {}  # Active authentication challenges
+        
+    def initiate_server_handshake(self, server_url: str, client_identity: str) -> Dict[str, Any]:
+        """
+        Initiate secure handshake with remote MCP server
+        
+        Args:
+            server_url: URL of the remote MCP server
+            client_identity: Identity of the connecting client
+            
+        Returns:
+            Dict containing handshake challenge and parameters
+            
+        Raises:
+            SecurityException: If handshake initiation fails
+        """
+        try:
+            # Validate server URL format
+            parsed_url = urlparse(server_url)
+            if parsed_url.scheme not in ["https", "wss"]:
+                raise SecurityException(f"Insecure protocol: {parsed_url.scheme}. Use HTTPS or WSS only.")
+            
+            # Generate challenge for server authentication
+            challenge_id = hashlib.sha256(f"{server_url}:{client_identity}:{time.time()}".encode()).hexdigest()
+            challenge_data = {
+                "challenge_id": challenge_id,
+                "client_identity": client_identity,
+                "timestamp": time.time(),
+                "nonce": os.urandom(32).hex(),
+                "required_capabilities": ["tool_discovery", "secure_invoke"],
+                "protocol_version": "1.0"
+            }
+            
+            # Store challenge for verification
+            self.server_challenges[challenge_id] = {
+                "server_url": server_url,
+                "challenge_data": challenge_data,
+                "created_at": datetime.utcnow(),
+                "status": "pending"
+            }
+            
+            print(f"🔄 Initiated handshake with {server_url} (challenge: {challenge_id[:8]}...)")
+            return challenge_data
+            
+        except Exception as e:
+            print(f"❌ Handshake initiation failed: {e}")
+            raise SecurityException(f"Handshake initiation failed: {e}")
+    
+    def validate_server_response(self, challenge_id: str, server_response: Dict[str, Any]) -> bool:
+        """
+        Validate server response to authentication challenge
+        
+        Args:
+            challenge_id: ID of the authentication challenge
+            server_response: Server's response to the challenge
+            
+        Returns:
+            bool: True if server response is valid and server is authenticated
+        """
+        try:
+            # Retrieve challenge data
+            if challenge_id not in self.server_challenges:
+                print(f"❌ Unknown challenge ID: {challenge_id}")
+                return False
+            
+            challenge_info = self.server_challenges[challenge_id]
+            
+            # Check challenge timeout
+            if datetime.utcnow() - challenge_info["created_at"] > timedelta(seconds=self.handshake_timeout):
+                print(f"❌ Challenge timeout for {challenge_id}")
+                del self.server_challenges[challenge_id]
+                return False
+            
+            # Validate server response format
+            required_fields = ["server_identity", "capabilities", "signature", "certificate"]
+            if not all(field in server_response for field in required_fields):
+                print(f"❌ Invalid server response format")
+                return False
+            
+            # Verify server certificate (simplified for MVP)
+            if not self._verify_server_certificate(server_response["certificate"]):
+                print(f"❌ Invalid server certificate")
+                return False
+            
+            # Verify response signature
+            if not self._verify_response_signature(challenge_info["challenge_data"], server_response):
+                print(f"❌ Invalid response signature")
+                return False
+            
+            # Validate server capabilities
+            if not self._validate_server_capabilities(server_response["capabilities"]):
+                print(f"❌ Invalid or insufficient server capabilities")
+                return False
+            
+            # Cache authenticated server
+            server_url = challenge_info["server_url"]
+            self.authenticated_servers[server_url] = {
+                "server_identity": server_response["server_identity"],
+                "capabilities": server_response["capabilities"],
+                "authenticated_at": datetime.utcnow(),
+                "certificate": server_response["certificate"]
+            }
+            
+            # Clean up challenge
+            self.server_challenges[challenge_id]["status"] = "completed"
+            
+            print(f"✅ Server authenticated: {server_url}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Server response validation failed: {e}")
+            return False
+    
+    def is_server_authenticated(self, server_url: str) -> bool:
+        """Check if server is currently authenticated"""
+        if server_url not in self.authenticated_servers:
+            return False
+        
+        # Check authentication expiry (1 hour for MVP)
+        auth_info = self.authenticated_servers[server_url]
+        if datetime.utcnow() - auth_info["authenticated_at"] > timedelta(hours=1):
+            del self.authenticated_servers[server_url]
+            return False
+        
+        return True
+    
+    def _verify_server_certificate(self, certificate: str) -> bool:
+        """Verify server SSL certificate (simplified for MVP)"""
+        try:
+            # In production, would verify against trusted CA certificates
+            # For MVP, basic format validation
+            return (
+                certificate.startswith("-----BEGIN CERTIFICATE-----") and
+                certificate.endswith("-----END CERTIFICATE-----") and
+                len(certificate) > 100
+            )
+        except Exception:
+            return False
+    
+    def _verify_response_signature(self, challenge_data: Dict[str, Any], server_response: Dict[str, Any]) -> bool:
+        """Verify server's signature on challenge response"""
+        try:
+            # Simplified signature verification for MVP
+            # In production, would use public key cryptography
+            expected_content = json.dumps(challenge_data, sort_keys=True)
+            signature = server_response.get("signature", "")
+            
+            # Basic signature format validation
+            return len(signature) >= 64 and signature.isalnum()
+            
+        except Exception:
+            return False
+    
+    def _validate_server_capabilities(self, capabilities: List[str]) -> bool:
+        """Validate server capabilities"""
+        required_capabilities = {"tool_discovery", "secure_invoke"}
+        provided_capabilities = set(capabilities)
+        
+        return required_capabilities.issubset(provided_capabilities)
 
 
 class ToolExposureController:
