@@ -152,65 +152,7 @@ sequenceDiagram
     end
 ```
 
-## Consolidated Template Method Pattern Security Flow
 
-```mermaid
-sequenceDiagram
-    participant Client as Client Application
-    participant Template as BaseAgentService<br/>(Template Method)
-    participant Concrete as EnhancedAgentService<br/>(Concrete Implementation)
-    participant Security as ConsolidatedAgentSecurity<br/>(MCP Framework Delegation)
-    participant MCPFramework as MCP Security Framework<br/>(InputSanitizer + ContextSanitizer)
-    participant Agent as Google ADK LLM
-    participant ModelArmor as Model Armor API
-
-    Note over Template: Consolidated Template Method Pattern (40% Code Reduction)
-    
-    Client->>Template: process_request(request, fastapi_request)
-    
-    %% Template Method Orchestration
-    Template->>Template: 1. _validate_request_security()
-    Template->>Security: validate_request(message, user_id, session_id, context)
-    
-    Note over Security: Agent Security Delegation to MCP Framework
-    Security->>MCPFramework: AgentPromptGuard → InputSanitizer
-    MCPFramework->>ModelArmor: AI-powered prompt injection analysis
-    ModelArmor-->>MCPFramework: Enhanced threat detection
-    MCPFramework-->>Security: Sanitized input
-    
-    Security->>MCPFramework: AgentContextValidator → ContextSanitizer
-    MCPFramework-->>Security: Validated context
-    
-    Security-->>Template: (is_valid, validation_results)
-    
-    alt Security Check Fails
-        Template->>Template: _handle_security_violation()
-        Template-->>Client: Security Error Response
-    else Security Check Passes
-        Template->>Concrete: 2. _process_agent_request() [Abstract Method]
-        
-        Note over Concrete: Concrete Implementation Logic
-        Concrete->>Agent: Execute agent pipeline
-        Agent-->>Concrete: Agent response
-        Concrete-->>Template: Processing results
-        
-        Template->>Template: 3. _validate_response_security()
-        Template->>Security: verify_mcp_response() + sanitize_response()
-        
-        Note over Security: Response Security Delegation
-        Security->>MCPFramework: AgentResponseSanitizer → ContextSanitizer
-        MCPFramework->>ModelArmor: Response threat analysis
-        ModelArmor-->>MCPFramework: AI-powered validation
-        MCPFramework-->>Security: Sanitized response
-        
-        Security-->>Template: Validated response
-        
-        Template->>Template: 4. _prepare_final_response()
-        Template-->>Client: Final secure response
-    end
-    
-    Note over Template,Concrete: Consolidated Template Method ensures<br/>consistent security with 40% code reduction<br/>via MCP framework delegation
-```
 
 ## Security Control Distribution
 

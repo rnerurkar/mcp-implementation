@@ -397,41 +397,19 @@ classDiagram
 8. **ToolExposureController**: Tool capability management
 9. **SemanticMappingValidator**: Tool metadata verification
 
-### **Enhanced Security Architecture Benefits**
+### **Architecture Benefits & Implementation**
 
-#### **40% Code Reduction via MCP Framework Delegation**
-- **Before**: Separate implementations in agent and MCP layers
-- **After**: Agent controls delegate to comprehensive MCP framework
-- **Result**: Eliminated duplicate code while maintaining full functionality
-- **Benefits**: Single source of truth, consistent security, reduced maintenance
+#### **Code Optimization & Security Enhancement**
+- **40% Code Reduction**: Agent controls delegate to comprehensive MCP framework, eliminating duplicate implementations
+- **Model Armor Integration**: AI-powered threat detection with graceful fallback to regex patterns
+- **Intelligent Delegation**: Shared InputSanitizer and ContextSanitizer across agent and MCP layers
+- **Single Source of Truth**: Consistent security pipeline with reduced maintenance overhead
 
-#### **Model Armor Integration**
-- **Enhanced InputSanitizer**: AI-powered prompt injection detection
-- **Enhanced ContextSanitizer**: Advanced tool response protection
-- **Graceful Fallback**: Regex patterns when Model Armor API unavailable
-- **Production Ready**: 14/14 comprehensive tests passing
-
-#### **Intelligent Security Delegation**
-- **Shared Components**: InputSanitizer and ContextSanitizer used by both layers
-- **Agent Wrappers**: Thin delegation layer for agent-specific functionality
-- **Framework Integration**: Complete security pipeline shared across layers
-- **Performance**: Reduced overhead through shared security components
-
-### **Design Patterns Implemented**
-
-1. **Layered Security**: Clear separation of concerns
-2. **Composition**: Security controls as composed components
-3. **Strategy**: Pluggable security strategies
-4. **Facade**: Simplified security interface
-5. **Observer**: Comprehensive audit trail
-
-### **Enterprise Benefits**
-
-1. **40% Code Reduction**: Eliminated duplicate security implementations through MCP framework delegation
-2. **Enhanced Performance**: Shared security components reduce overhead and memory footprint
-3. **Model Armor Integration**: AI-powered threat detection for sophisticated attack prevention
-4. **Defense-in-Depth**: Complementary protection layers with intelligent delegation
-5. **Enterprise-Ready**: Production monitoring, compliance, and comprehensive testing
-6. **Consolidated Maintenance**: Single source of truth for security updates and improvements
+#### **Design Patterns & Enterprise Features**
+- **Layered Security**: Clear separation across Apigee Gateway, Agent Service, and MCP Server
+- **Composition Pattern**: Security controls as pluggable, composed components
+- **Template Method**: Consistent processing pipeline with agent-specific implementations
+- **Defense-in-Depth**: Complementary protection layers with enterprise monitoring
+- **Production Ready**: 14/14 comprehensive tests passing with full compliance support
 
 This consolidated architecture provides enterprise-grade AI security with **40% code reduction** while enhancing protection through **Model Armor integration** and maintaining optimal performance with clear architectural boundaries and intelligent security delegation.
