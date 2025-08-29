@@ -77,14 +77,14 @@ class SecurityLevel(Enum):
     HIGH = "high"
     ZERO_TRUST = "zero-trust"
 
-@dataclass
-class TestResult:
+class ResultContainer:
     """Test result container"""
-    name: str
-    passed: bool
-    duration_ms: float
-    details: str = ""
-    warnings: List[str] = None
+    def __init__(self, name: str, passed: bool, duration_ms: float, details: str = "", warnings: Optional[List[str]] = None):
+        self.name = name
+        self.passed = passed
+        self.duration_ms = duration_ms
+        self.details = details
+        self.warnings = warnings or []
 
 # =============================================================================
 # COMPILATION AND IMPORT VALIDATION TESTS

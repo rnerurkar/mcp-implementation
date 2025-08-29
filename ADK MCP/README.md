@@ -43,15 +43,15 @@ This implementation features a **consolidated security architecture** that achie
 5. **SecurityAuditor**: Agent-specific comprehensive audit logging
 
 ### **Layer 3: MCP Server Security Controls (9 Consolidated Controls)**
-6. **InputSanitizer**: Comprehensive input sanitization and validation with Model Armor API
-7. **GoogleCloudTokenValidator**: Cloud Run automatic authentication with header validation
-8. **SchemaValidator**: JSON-RPC 2.0 message validation with MCP protocol security
-9. **CredentialManager**: Secure credential handling with Google Cloud Secret Manager
-10. **ContextSanitizer**: Context poisoning prevention, PII detection, and **Model Armor tool response protection**
-11. **OPAPolicyClient**: Policy-based access control and enforcement
-12. **ServerNameRegistry**: Server impersonation prevention
-13. **ToolExposureController**: Tool capability management and access control
-14. **SemanticMappingValidator**: Tool metadata verification and validation
+1. **InputSanitizer**: Comprehensive input sanitization and validation with Model Armor API
+2. **GoogleCloudTokenValidator**: Cloud Run automatic authentication with header validation
+3. **SchemaValidator**: JSON-RPC 2.0 message validation with MCP protocol security
+4. **CredentialManager**: Secure credential handling with Google Cloud Secret Manager
+5. **ContextSanitizer**: Context poisoning prevention, PII detection, and **Model Armor tool response protection**
+6. **OPAPolicyClient**: Policy-based access control and enforcement
+7. **ServerNameRegistry**: Server impersonation prevention
+8. **ToolExposureController**: Tool capability management and access control
+9. **SemanticMappingValidator**: Tool metadata verification and validation
 
 ### **🛡️ Model Armor Enhanced Protection**
 The **ContextSanitizer** includes advanced **Model Armor API integration** for superior threat detection:
@@ -127,7 +127,7 @@ This implementation supports two separate deployments with shared security frame
    - Handles session management and user conversations
 
 2. **MCP Server** (`mcp_server_service.py` on port 8000):
-   - Comprehensive security framework with 18 controls
+   - Comprehensive security framework with 9 controls
    - Exposes tools via `/mcp-server` endpoint
    - Shared by agent service for consolidated security
    - Provides `/invoke` endpoint for direct tool execution
