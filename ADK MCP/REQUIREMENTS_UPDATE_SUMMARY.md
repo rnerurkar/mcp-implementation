@@ -24,7 +24,6 @@ google-cloud-aiplatform[agent-engines]>=1.95.1
 
 # Reorganized security section with clear labeling
 PyJWT==2.10.1                          # GoogleCloudTokenValidator
-cryptography==45.0.5                   # ContextSecurity, RSA operations
 jsonschema==4.23.0                     # SchemaValidator JSON-RPC 2.0 validation
 ```
 
@@ -109,7 +108,7 @@ python -m pytest mcp_security_controls_test.py::TestZeroTrustSecurityArchitectur
 
 ### **Expected Results**
 - ✅ No dependency conflicts (`pip check` passes)
-- ✅ All 12 security controls import successfully
+- ✅ All 9 security controls import successfully
 - ✅ 8/8 zero-trust architecture tests pass
 - ✅ Security level reports as "zero-trust" when all controls active
 
@@ -136,7 +135,7 @@ Comprehensive testing dependencies ensure:
 ## 📊 **Dependencies Summary**
 
 - **Total Dependencies**: 25+ core packages
-- **Security-Focused**: 12+ packages directly supporting security controls  
+- **Security-Focused**: 9+ packages directly supporting security controls  
 - **Testing**: 4+ testing framework packages
 - **Optional**: 8+ enhanced security and ML packages
 - **Zero Conflicts**: All dependencies compatible with each other

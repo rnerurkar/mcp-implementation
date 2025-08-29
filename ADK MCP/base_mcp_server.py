@@ -160,18 +160,16 @@ class BaseMCPServer(ABC):
             # Graceful degradation - log warning but continue operation
             print(f"⚠️ Warning: Some zero-trust security controls not available: {e}")
             # Set None values for graceful handling
-            self.installer_validator = None
             self.server_registry = None
-            self.remote_authenticator = None
             self.tool_controller = None
             self.semantic_validator = None
 
     def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process incoming request through comprehensive 12-control security pipeline
+        Process incoming request through comprehensive 9-control security pipeline
         
         This method implements an optimized secure request processing workflow with all
-        12 security controls in optimal order for MCP performance:
+        9 security controls in optimal order for MCP performance:
         
         PHASE 1 - PRE-AUTHENTICATION (Fast Fail)
         1. Input Sanitization - Remove malicious content early
@@ -181,19 +179,14 @@ class BaseMCPServer(ABC):
         3. Token Validation - Authenticate the requester
         4. OPA Policy Enforcement - Check authorization policies
         
-        PHASE 3 - SUPPLY CHAIN & INFRASTRUCTURE SECURITY
-        5. Installer Security Validation - Verify tool integrity  
-        6. Server Identity Verification - Prevent impersonation
-        7. Remote Server Authentication - Secure communication
+        PHASE 3 - ZERO-TRUST ARCHITECTURE CONTROLS
+        5. Server Identity Verification - Prevent impersonation
+        6. Tool Exposure Control - Manage tool capabilities
+        7. Semantic Mapping Validation - Verify tool metadata
         
-        PHASE 4 - TOOL-SPECIFIC SECURITY
-        8. Tool Exposure Control - Manage tool capabilities
-        9. Semantic Mapping Validation - Verify tool metadata
-        
-        PHASE 5 - EXECUTION & RESPONSE SECURITY
-        10. Credential Management - Secure tool execution
-        11. Context Sanitization - Clean response data
-        12. Context Security - Sign and verify response integrity
+        PHASE 4 - EXECUTION & RESPONSE SECURITY
+        8. Credential Management - Secure tool execution
+        9. Context Sanitization - Clean response data
         
         Args:
             request (Dict[str, Any]): Incoming request containing:
@@ -204,7 +197,7 @@ class BaseMCPServer(ABC):
         Returns:
             Dict[str, Any]: Secure response containing:
                 - status: "success" or "error"
-                - data: Sanitized and signed execution context (on success)
+                - data: Sanitized execution context (on success)
                 - message: Error message (on failure)
         """
         try:
@@ -532,7 +525,7 @@ class BaseMCPServer(ABC):
     
     def get_security_status(self) -> Dict[str, Any]:
         """
-        Get comprehensive status of all zero-trust security controls
+        Get comprehensive status of all 9 zero-trust security controls
         
         Returns:
             Dict containing status of each security control component
@@ -542,24 +535,32 @@ class BaseMCPServer(ABC):
         status = {
             "timestamp": datetime.now().isoformat(),
             "security_level": "zero-trust" if all([
-                getattr(self, 'installer_validator', None),
-                getattr(self, 'server_registry', None), 
-                getattr(self, 'remote_authenticator', None),
+                getattr(self, 'server_registry', None),
                 getattr(self, 'tool_controller', None),
-                getattr(self, 'semantic_validator', None)
+                getattr(self, 'semantic_validator', None),
+                getattr(self, 'input_sanitizer', None),
+                getattr(self, 'schema_validator', None)
             ]) else "standard",
             "controls": {
-                "installer_security": {
-                    "enabled": hasattr(self, 'installer_validator') and self.installer_validator is not None,
-                    "status": "active" if getattr(self, 'installer_validator', None) else "disabled"
+                "input_sanitization": {
+                    "enabled": hasattr(self, 'input_sanitizer') and self.input_sanitizer is not None,
+                    "status": "active" if getattr(self, 'input_sanitizer', None) else "disabled"
+                },
+                "schema_validation": {
+                    "enabled": hasattr(self, 'schema_validator') and self.schema_validator is not None,
+                    "status": "active" if getattr(self, 'schema_validator', None) else "disabled"
+                },
+                "token_validation": {
+                    "enabled": hasattr(self, 'token_validator') and self.token_validator is not None,
+                    "status": "active" if getattr(self, 'token_validator', None) else "disabled"
+                },
+                "opa_policy_enforcement": {
+                    "enabled": hasattr(self, 'opa_enforcer') and self.opa_enforcer is not None,
+                    "status": "active" if getattr(self, 'opa_enforcer', None) else "disabled"
                 },
                 "server_registry": {
                     "enabled": hasattr(self, 'server_registry') and self.server_registry is not None,
                     "status": "active" if getattr(self, 'server_registry', None) else "disabled"
-                },
-                "remote_authentication": {
-                    "enabled": hasattr(self, 'remote_authenticator') and self.remote_authenticator is not None,
-                    "status": "active" if getattr(self, 'remote_authenticator', None) else "disabled"
                 },
                 "tool_exposure_control": {
                     "enabled": hasattr(self, 'tool_controller') and self.tool_controller is not None,
@@ -568,6 +569,14 @@ class BaseMCPServer(ABC):
                 "semantic_validation": {
                     "enabled": hasattr(self, 'semantic_validator') and self.semantic_validator is not None,
                     "status": "active" if getattr(self, 'semantic_validator', None) else "disabled"
+                },
+                "credential_management": {
+                    "enabled": hasattr(self, 'credential_manager') and self.credential_manager is not None,
+                    "status": "active" if getattr(self, 'credential_manager', None) else "disabled"
+                },
+                "context_sanitization": {
+                    "enabled": hasattr(self, 'context_sanitizer') and self.context_sanitizer is not None,
+                    "status": "active" if getattr(self, 'context_sanitizer', None) else "disabled"
                 }
             }
         }
@@ -575,7 +584,7 @@ class BaseMCPServer(ABC):
     
     def validate_security_configuration(self) -> Dict[str, Any]:
         """
-        Validate that all security controls are properly configured
+        Validate that all 9 security controls are properly configured
         
         Returns:
             Dict containing validation results and recommendations
@@ -587,13 +596,40 @@ class BaseMCPServer(ABC):
             "recommendations": []
         }
         
-        # Check installer security
-        if not getattr(self, 'installer_validator', None):
+        # Check input sanitization
+        if not getattr(self, 'input_sanitizer', None):
             validation_results["warnings"].append(
-                "Installer security validator not configured - supply chain attacks possible"
+                "Input sanitizer not configured - injection attacks possible"
             )
             validation_results["recommendations"].append(
-                "Configure trusted registries and signature keys for installer validation"
+                "Configure input sanitization to prevent malicious input processing"
+            )
+        
+        # Check schema validation
+        if not getattr(self, 'schema_validator', None):
+            validation_results["warnings"].append(
+                "Schema validator not configured - malformed request attacks possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure schema validation to ensure request structure integrity"
+            )
+        
+        # Check token validation
+        if not getattr(self, 'token_validator', None):
+            validation_results["warnings"].append(
+                "Token validator not configured - unauthorized access possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure token validation for secure authentication"
+            )
+        
+        # Check OPA policy enforcement
+        if not getattr(self, 'opa_enforcer', None):
+            validation_results["warnings"].append(
+                "OPA policy enforcer not configured - authorization bypass possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure OPA policies for fine-grained authorization control"
             )
         
         # Check server registry
@@ -603,15 +639,6 @@ class BaseMCPServer(ABC):
             )
             validation_results["recommendations"].append(
                 "Configure server registry to prevent name collision attacks"
-            )
-        
-        # Check remote authentication
-        if not getattr(self, 'remote_authenticator', None):
-            validation_results["warnings"].append(
-                "Remote server authenticator not configured - MITM attacks possible"
-            )
-            validation_results["recommendations"].append(
-                "Configure trusted CA certificates for remote server authentication"
             )
         
         # Check tool exposure control
@@ -630,6 +657,24 @@ class BaseMCPServer(ABC):
             )
             validation_results["recommendations"].append(
                 "Configure semantic models for tool metadata validation"
+            )
+        
+        # Check credential management
+        if not getattr(self, 'credential_manager', None):
+            validation_results["warnings"].append(
+                "Credential manager not configured - credential exposure possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure credential management for secure tool execution"
+            )
+        
+        # Check context sanitization
+        if not getattr(self, 'context_sanitizer', None):
+            validation_results["warnings"].append(
+                "Context sanitizer not configured - response data leakage possible"
+            )
+            validation_results["recommendations"].append(
+                "Configure context sanitization to clean response data"
             )
         
         # Determine overall status

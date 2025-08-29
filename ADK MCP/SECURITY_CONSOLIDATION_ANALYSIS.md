@@ -2,7 +2,7 @@
 
 ## Overview
 
-Analysis of security control similarities between `agent_security_controls.py` (8 classes, 6 controls) and `mcp_security_controls.py` (13 classes, 12 controls) reveals significant opportunities for consolidation.
+Analysis of security control similarities between `agent_security_controls.py` (8 classes, 5 controls) and `mcp_security_controls.py` (10 classes, 9 controls) reveals significant opportunities for consolidation.
 
 ## Key Findings
 
@@ -63,8 +63,8 @@ class AgentContextValidator:
 
 ### **Code Reduction:**
 - **Before**: 8 classes in agent + 13 classes in MCP = 21 total classes
-- **After**: 5 wrapper classes in agent + 13 classes in MCP = 18 total classes
-- **Reduction**: ~14% reduction in total classes
+- **After**: 5 wrapper classes in agent + 10 classes in MCP = 15 total classes
+- **Reduction**: ~29% reduction in total classes
 - **Functional Code Reduction**: ~40% reduction in actual implementation code (wrappers are thin)
 
 ### **Maintenance Benefits:**

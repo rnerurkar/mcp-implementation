@@ -9,15 +9,12 @@ CORE SECURITY CONTROLS:
 3. SchemaValidator - Input validation with security rules and deep sanitization
 4. CredentialManager - Secure credential handling via Google Secret Manager
 5. ContextSanitizer - Context poisoning prevention and PII redaction
-6. ContextSecurity - Context signing and verification (local RSA + Google KMS)
-7. OPAPolicyClient - Policy enforcement via Open Policy Agent
+6. OPAPolicyClient - Policy enforcement via Open Policy Agent
 
 ZERO-TRUST ARCHITECTURE CONTROLS:
-8. InstallerSecurityValidator - Supply chain protection for package installations
-9. ServerNameRegistry - Server impersonation prevention with namespace management
-10. RemoteServerAuthenticator - Secure communication with certificate validation
-11. ToolExposureController - Tool capability management with policy-based control
-12. SemanticMappingValidator - Tool metadata verification and semantic validation
+7. ServerNameRegistry - Server impersonation prevention with namespace management
+8. ToolExposureController - Tool capability management with policy-based control
+9. SemanticMappingValidator - Tool metadata verification and semantic validation
 
 SECURITY ARCHITECTURE FEATURES:
 - Policy file integration for tool exposure control (tool_exposure_policy.json)
@@ -68,14 +65,10 @@ from mcp_security_controls import (
     SchemaValidator,             # Class for input validation with security rules and deep sanitization
     CredentialManager,           # Class for secure credential handling via Google Secret Manager
     ContextSanitizer,            # Class for context poisoning prevention and PII redaction
-    ContextSecurity,             # Class for context signing and verification (RSA + KMS)
     OPAPolicyClient,             # Class for policy enforcement via Open Policy Agent
     ToolExposureController,      # Class for tool capability management with policy-based control
-    # Zero-Trust Security Controls
-    InstallerSecurityValidator, # Class for supply chain security and installer validation
-    ServerNameRegistry,         # Class for server name registration and impersonation prevention
-    RemoteServerAuthenticator,  # Class for remote server identity validation and secure handshakes
-    SemanticMappingValidator,   # Class for tool metadata semantic validation and consistency checking
+    ServerNameRegistry,          # Class for server name registration and impersonation prevention
+    SemanticMappingValidator,    # Class for tool metadata semantic validation and consistency checking
     SecurityException            # Custom exception class for security errors
 )
 
@@ -646,29 +639,6 @@ class TestContextSanitizer(unittest.TestCase):
         self.assertIn("[REDACTED]", str(result))
 
 
-class TestContextSecurity(unittest.TestCase):
-    """Test ContextSecurity for context signing and verification"""
-    
-    def setUp(self):
-        # Test with local key generation (no KMS)
-        self.context_security = ContextSecurity()
-    
-    def test_initialization_local(self):
-        """Test initialization with local key generation"""
-        self.assertEqual(self.context_security.signing_strategy, "local")
-        self.assertIsNotNone(self.context_security.private_key)
-        self.assertIsNotNone(self.context_security.public_key)
-    
-    @patch('mcp_security_controls.kms_v1.KeyManagementServiceClient')
-    def test_initialization_kms(self, mock_kms_client):
-        """Test initialization with KMS"""
-        context_security = ContextSecurity("projects/test/locations/global/keyRings/test/cryptoKeys/test")
-        
-        self.assertEqual(context_security.signing_strategy, "kms")
-        self.assertIsNotNone(context_security.kms_client)
-        mock_kms_client.assert_called_once()
-
-
 class TestOPAPolicyClient(unittest.TestCase):
     """
     Test OPAPolicyClient for policy enforcement
@@ -817,21 +787,19 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
     This test suite validates the integrated zero-trust security controls that form
     a complete defense-in-depth security architecture for MCP servers:
     
-    CORE SECURITY CONTROLS (8):
+    CORE SECURITY CONTROLS (7):
     1. InputSanitizer - Prompt injection and input sanitization with Model Armor integration
     2. GoogleCloudTokenValidator - JWT token validation using Google Cloud ID tokens  
     3. SchemaValidator - Input validation with security rules and deep sanitization
     4. CredentialManager - Secure credential handling via Google Secret Manager
     5. ContextSanitizer - Context poisoning prevention and PII redaction
-    6. ContextSecurity - Context signing and verification (local RSA + Google KMS)
-    7. OPAPolicyClient - Policy enforcement via Open Policy Agent
-    8. SecurityException - Custom security exception handling
+    6. OPAPolicyClient - Policy enforcement via Open Policy Agent
+    7. SecurityException - Custom security exception handling
     
-    ZERO-TRUST ARCHITECTURE CONTROLS (4):
-    9. InstallerSecurityValidator - Supply chain protection for package installations
-    10. ServerNameRegistry - Server impersonation prevention with namespace management
-    11. RemoteServerAuthenticator - Secure communication with certificate validation
-    12. ToolExposureController - Tool capability management with policy-based control
+    ZERO-TRUST ARCHITECTURE CONTROLS (3):
+    8. ServerNameRegistry - Server impersonation prevention with namespace management
+    9. ToolExposureController - Tool capability management with policy-based control
+    10. SemanticMappingValidator - Tool metadata verification and semantic validation
     
     ADDITIONAL COMPONENTS:
     13. SemanticMappingValidator - Tool metadata verification and semantic validation
@@ -885,29 +853,6 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
             }
         }
     
-    def test_installer_security_validator(self):
-        """Test InstallerSecurityValidator for supply chain protection"""
-        from mcp_security_controls import InstallerSecurityValidator
-        
-        validator = InstallerSecurityValidator(
-            trusted_registries=["https://pypi.org"],
-            signature_keys={"pypi": "test-key"}
-        )
-        
-        # Test package validation structure
-        test_package = {
-            "name": "requests",
-            "version": "2.28.0", 
-            "registry": "https://pypi.org",
-            "signature": "test-signature"
-        }
-        
-        # Verify validator is properly configured
-        self.assertIn("https://pypi.org", validator.trusted_registries)
-        self.assertEqual(validator.signature_keys["pypi"], "test-key")
-        
-        print("✅ InstallerSecurityValidator: Supply chain protection configured")
-    
     def test_server_name_registry(self):
         """Test ServerNameRegistry for server impersonation prevention"""
         from mcp_security_controls import ServerNameRegistry
@@ -929,21 +874,6 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
         self.assertIsInstance(token, str)
         
         print(f"✅ ServerNameRegistry: Server registered - {test_server}")
-    
-    def test_remote_server_authenticator(self):
-        """Test RemoteServerAuthenticator for secure communication"""
-        from mcp_security_controls import RemoteServerAuthenticator
-        
-        authenticator = RemoteServerAuthenticator(
-            trusted_ca_certs=["test-ca"],
-            handshake_timeout=30
-        )
-        
-        # Verify configuration
-        self.assertEqual(authenticator.trusted_ca_certs, ["test-ca"])
-        self.assertEqual(authenticator.handshake_timeout, 30)
-        
-        print("✅ RemoteServerAuthenticator: Secure handshake configured")
     
     def test_tool_exposure_controller(self):
         """Test ToolExposureController for capability management"""
@@ -1095,22 +1025,21 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
     
     @patch('mcp_security_controls.InputSanitizer')
     @patch('mcp_security_controls.ContextSanitizer') 
-    @patch('mcp_security_controls.ContextSecurity')
-    def test_zero_trust_architecture_integration(self, mock_context_security, mock_context_sanitizer, mock_input_sanitizer):
+    def test_zero_trust_architecture_integration(self, mock_context_sanitizer, mock_input_sanitizer):
         """
         Test complete zero-trust security architecture integration
         
         COMPREHENSIVE INTEGRATION TESTING:
-        - Validates all 12+ security controls can be imported and instantiated
+        - Validates all 10 security controls can be imported and instantiated
         - Tests security control interoperability and integration
         - Verifies zero-trust architecture completeness
         - Ensures no missing dependencies or import conflicts
         
         SECURITY CONTROLS VALIDATION:
         - Core Security: InputSanitizer, TokenValidator, SchemaValidator, etc.
-        - Zero-Trust Architecture: InstallerValidator, ServerRegistry, etc.
+        - Zero-Trust Architecture: ServerRegistry, ToolExposureController, etc.
         - Policy Management: ToolExposureController, SemanticValidator
-        - Credential Management: CredentialManager, ContextSecurity
+        - Credential Management: CredentialManager
         
         MOCK STRATEGY:
         - Mocks external dependencies to isolate architecture testing
@@ -1123,7 +1052,6 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
         # Mock the security components for integration testing
         mock_input_sanitizer.return_value = Mock()
         mock_context_sanitizer.return_value = Mock()
-        mock_context_security.return_value = Mock()
         
         try:
             # Import all zero-trust security controls
@@ -1133,11 +1061,8 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
                 SchemaValidator,
                 CredentialManager,
                 ContextSanitizer,
-                ContextSecurity,
                 OPAPolicyClient,
-                InstallerSecurityValidator,
                 ServerNameRegistry,
-                RemoteServerAuthenticator,
                 ToolExposureController,
                 SemanticMappingValidator
             )
@@ -1149,19 +1074,16 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
                 SchemaValidator, 
                 CredentialManager,
                 ContextSanitizer,
-                ContextSecurity,
                 OPAPolicyClient,
-                InstallerSecurityValidator,
                 ServerNameRegistry,
-                RemoteServerAuthenticator,
                 ToolExposureController,
                 SemanticMappingValidator
             ]
             
-            # All 12 security controls should be available
-            self.assertEqual(len(security_controls), 12)
+            # All 9 security controls should be available
+            self.assertEqual(len(security_controls), 9)
             
-            print("✅ Zero-Trust Security Architecture: All 12 controls integrated")
+            print("✅ Zero-Trust Security Architecture: All 9 controls integrated")
             print("   🔒 Complete zero-trust security architecture validated")
             
         except ImportError as e:
@@ -1231,175 +1153,6 @@ class TestZeroTrustSecurityArchitecture(unittest.TestCase):
         self.assertIn("[REDACTED]", str(sanitized_context))
         
         print("✅ Defense-in-Depth: Multiple security layers validated")
-
-
-class TestInstallerSecurityValidator(unittest.TestCase):
-    """
-    Test InstallerSecurityValidator for supply chain security
-    
-    SUPPLY CHAIN SECURITY TESTING:
-    - Validates installer source authenticity
-    - Tests package signature verification
-    - Checks trusted registry enforcement
-    - Prevents malicious installer distribution
-    
-    SECURITY CONTROLS TESTED:
-    - Trusted registry validation
-    - Package signature verification
-    - Integrity checking with checksums
-    - Malicious pattern detection
-    - Supply chain attack prevention
-    
-    This ensures MCP server installations are secure and verified,
-    preventing supply chain attacks through malicious installers.
-    """
-    
-    def setUp(self):
-        """Set up test fixtures for installer security validation"""
-        self.trusted_registries = [
-            "https://registry.npmjs.org",
-            "https://pypi.org", 
-            "https://github.com"
-        ]
-        self.signature_keys = {
-            "https://registry.npmjs.org": "npm_public_key",
-            "https://pypi.org": "pypi_public_key"
-        }
-        self.validator = InstallerSecurityValidator(
-            trusted_registries=self.trusted_registries,
-            signature_keys=self.signature_keys
-        )
-    
-    def test_initialization(self):
-        """Test proper initialization of InstallerSecurityValidator"""
-        self.assertEqual(self.validator.trusted_registries, self.trusted_registries)
-        self.assertEqual(self.validator.signature_keys, self.signature_keys)
-        self.assertIsInstance(self.validator.installation_cache, dict)
-    
-    def test_trusted_registry_validation_success(self):
-        """Test successful validation of trusted registry sources"""
-        # Test valid NPM package
-        npm_metadata = {
-            "signature": "valid_npm_signature",
-            "checksum": "sha256:abc123...",
-            "registry": "npmjs"
-        }
-        
-        with patch.object(self.validator, '_verify_package_signature', return_value=True), \
-             patch.object(self.validator, '_verify_package_integrity', return_value=True), \
-             patch.object(self.validator, '_detect_malicious_patterns', return_value=False):
-            
-            result = self.validator.validate_installer_source(
-                "https://registry.npmjs.org/mcp-server/1.0.0", 
-                npm_metadata
-            )
-            self.assertTrue(result)
-        
-        # Test valid PyPI package
-        pypi_metadata = {
-            "signature": "valid_pypi_signature", 
-            "checksum": "sha256:def456...",
-            "registry": "pypi"
-        }
-        
-        with patch.object(self.validator, '_verify_package_signature', return_value=True), \
-             patch.object(self.validator, '_verify_package_integrity', return_value=True), \
-             patch.object(self.validator, '_detect_malicious_patterns', return_value=False):
-            
-            result = self.validator.validate_installer_source(
-                "https://pypi.org/project/mcp-server/1.0.0/",
-                pypi_metadata
-            )
-            self.assertTrue(result)
-    
-    def test_untrusted_registry_rejection(self):
-        """Test rejection of untrusted registry sources"""
-        malicious_metadata = {
-            "signature": "fake_signature",
-            "checksum": "sha256:malicious...",
-            "registry": "malicious"
-        }
-        
-        # Test untrusted registry URL
-        with self.assertRaises(SecurityException) as context:
-            self.validator.validate_installer_source(
-                "https://malicious-registry.com/mcp-server/1.0.0",
-                malicious_metadata
-            )
-        
-        self.assertIn("Untrusted installer registry", str(context.exception))
-        self.assertIn("malicious-registry.com", str(context.exception))
-    
-    def test_invalid_signature_rejection(self):
-        """Test rejection of packages with invalid signatures"""
-        invalid_signature_metadata = {
-            "signature": "invalid_signature",
-            "checksum": "sha256:valid123...",
-            "registry": "npmjs"
-        }
-        
-        with patch.object(self.validator, '_verify_package_signature', return_value=False), \
-             patch.object(self.validator, '_verify_package_integrity', return_value=True):
-            
-            with self.assertRaises(SecurityException) as context:
-                self.validator.validate_installer_source(
-                    "https://registry.npmjs.org/mcp-server/1.0.0",
-                    invalid_signature_metadata
-                )
-            
-            self.assertIn("Invalid package signature", str(context.exception))
-    
-    def test_integrity_check_failure(self):
-        """Test rejection of packages that fail integrity checks"""
-        corrupted_metadata = {
-            "signature": "valid_signature",
-            "checksum": "sha256:corrupted...",
-            "registry": "npmjs"
-        }
-        
-        with patch.object(self.validator, '_verify_package_signature', return_value=True), \
-             patch.object(self.validator, '_verify_package_integrity', return_value=False):
-            
-            with self.assertRaises(SecurityException) as context:
-                self.validator.validate_installer_source(
-                    "https://registry.npmjs.org/mcp-server/1.0.0",
-                    corrupted_metadata
-                )
-            
-            self.assertIn("Package integrity check failed", str(context.exception))
-    
-    def test_malicious_pattern_detection(self):
-        """Test detection of malicious patterns in installers"""
-        with patch.object(self.validator, '_verify_package_signature', return_value=True), \
-             patch.object(self.validator, '_verify_package_integrity', return_value=True), \
-             patch.object(self.validator, '_detect_malicious_patterns', return_value=True):
-            
-            with self.assertRaises(SecurityException) as context:
-                self.validator.validate_installer_source(
-                    "https://registry.npmjs.org/mcp-server/1.0.0",
-                    {"signature": "valid", "checksum": "valid"}
-                )
-            
-            self.assertIn("Malicious patterns detected", str(context.exception))
-    
-    def test_installation_caching(self):
-        """Test caching of validated installations"""
-        metadata = {"signature": "valid", "checksum": "sha256:test123"}
-        installer_url = "https://registry.npmjs.org/mcp-server/1.0.0"
-        
-        with patch.object(self.validator, '_verify_package_signature', return_value=True), \
-             patch.object(self.validator, '_verify_package_integrity', return_value=True), \
-             patch.object(self.validator, '_detect_malicious_patterns', return_value=False):
-            
-            # First validation should perform full check
-            result1 = self.validator.validate_installer_source(installer_url, metadata)
-            self.assertTrue(result1)
-            
-            # Second validation should use cache
-            result2 = self.validator.validate_installer_source(installer_url, metadata)
-            self.assertTrue(result2)
-        
-        print("✅ InstallerSecurityValidator: Supply chain security controls validated")
 
 
 class TestServerNameRegistry(unittest.TestCase):
@@ -1583,229 +1336,6 @@ class TestServerNameRegistry(unittest.TestCase):
                 self.assertIn(name, self.registry.registered_servers)
         
         print("✅ ServerNameRegistry: Server naming and impersonation prevention validated")
-
-
-class TestRemoteServerAuthenticator(unittest.TestCase):
-    """
-    Test RemoteServerAuthenticator for secure server communication
-    
-    REMOTE AUTHENTICATION TESTING:
-    - Validates secure handshake protocols
-    - Tests certificate verification
-    - Checks server identity validation
-    - Prevents man-in-the-middle attacks
-    
-    SECURITY CONTROLS TESTED:
-    - HTTPS/WSS protocol enforcement
-    - Challenge-response authentication
-    - Certificate validation with trusted CAs
-    - Server capability verification
-    - Handshake timeout handling
-    
-    This ensures secure communication with remote MCP servers,
-    preventing MITM attacks and unauthorized server access.
-    """
-    
-    def setUp(self):
-        """Set up test fixtures for remote server authentication"""
-        self.trusted_certs = ["ca-cert-1.pem", "ca-cert-2.pem"]
-        self.authenticator = RemoteServerAuthenticator(
-            trusted_ca_certs=self.trusted_certs,
-            handshake_timeout=30
-        )
-        self.client_identity = "client@project.iam.gserviceaccount.com"
-    
-    def test_initialization(self):
-        """Test proper initialization of RemoteServerAuthenticator"""
-        self.assertEqual(self.authenticator.trusted_ca_certs, self.trusted_certs)
-        self.assertEqual(self.authenticator.handshake_timeout, 30)
-        self.assertIsInstance(self.authenticator.authenticated_servers, dict)
-        self.assertIsInstance(self.authenticator.server_challenges, dict)
-    
-    def test_secure_protocol_enforcement(self):
-        """Test enforcement of secure protocols (HTTPS/WSS only)"""
-        secure_urls = [
-            "https://mcp-server.example.com",
-            "wss://mcp-server.example.com/ws"
-        ]
-        
-        for url in secure_urls:
-            with self.subTest(url=url):
-                challenge = self.authenticator.initiate_server_handshake(url, self.client_identity)
-                self.assertIn("challenge_id", challenge)
-                self.assertIn("nonce", challenge)
-                self.assertEqual(challenge["client_identity"], self.client_identity)
-    
-    def test_insecure_protocol_rejection(self):
-        """Test rejection of insecure protocols"""
-        insecure_urls = [
-            "http://mcp-server.example.com",
-            "ws://mcp-server.example.com/ws",
-            "ftp://mcp-server.example.com"
-        ]
-        
-        for url in insecure_urls:
-            with self.subTest(url=url):
-                with self.assertRaises(SecurityException) as context:
-                    self.authenticator.initiate_server_handshake(url, self.client_identity)
-                self.assertIn("Insecure protocol", str(context.exception))
-    
-    def test_handshake_challenge_generation(self):
-        """Test proper generation of authentication challenges"""
-        server_url = "https://mcp-server.example.com"
-        
-        challenge = self.authenticator.initiate_server_handshake(server_url, self.client_identity)
-        
-        # Verify challenge structure
-        required_fields = ["challenge_id", "client_identity", "timestamp", "nonce", 
-                          "required_capabilities", "protocol_version"]
-        for field in required_fields:
-            self.assertIn(field, challenge)
-        
-        # Verify challenge is stored
-        challenge_id = challenge["challenge_id"]
-        self.assertIn(challenge_id, self.authenticator.server_challenges)
-        
-        # Verify challenge data
-        stored_challenge = self.authenticator.server_challenges[challenge_id]
-        self.assertEqual(stored_challenge["server_url"], server_url)
-        self.assertEqual(stored_challenge["status"], "pending")
-    
-    def test_valid_server_response_acceptance(self):
-        """Test acceptance of valid server responses"""
-        server_url = "https://mcp-server.example.com"
-        
-        # Initiate handshake
-        challenge = self.authenticator.initiate_server_handshake(server_url, self.client_identity)
-        challenge_id = challenge["challenge_id"]
-        
-        # Mock valid server response
-        valid_response = {
-            "challenge_id": challenge_id,
-            "server_identity": "mcp-server@example.com",
-            "capabilities": ["tool_discovery", "secure_invoke"],
-            "certificate": "valid_cert_data",
-            "signature": "valid_signature",
-            "protocol_version": "1.0"
-        }
-        
-        with patch.object(self.authenticator, '_verify_server_certificate', return_value=True), \
-             patch.object(self.authenticator, '_verify_response_signature', return_value=True), \
-             patch.object(self.authenticator, '_validate_server_capabilities', return_value=True):
-            
-            result = self.authenticator.validate_server_response(challenge_id, valid_response)
-            self.assertTrue(result)
-    
-    def test_invalid_challenge_id_rejection(self):
-        """Test rejection of responses with invalid challenge IDs"""
-        invalid_challenge_id = "invalid-challenge-id"
-        response = {
-            "challenge_id": invalid_challenge_id,
-            "server_identity": "server@example.com"
-        }
-        
-        # Should return False for invalid challenge ID
-        result = self.authenticator.validate_server_response(invalid_challenge_id, response)
-        self.assertFalse(result)
-    
-    def test_certificate_verification_failure(self):
-        """Test handling of certificate verification failures"""
-        server_url = "https://mcp-server.example.com"
-        
-        # Initiate handshake
-        challenge = self.authenticator.initiate_server_handshake(server_url, self.client_identity)
-        challenge_id = challenge["challenge_id"]
-        
-        # Mock response with invalid certificate
-        invalid_cert_response = {
-            "challenge_id": challenge_id,
-            "server_identity": "mcp-server@example.com",
-            "capabilities": ["tool_discovery", "secure_invoke"],
-            "certificate": "invalid_cert_data",
-            "signature": "signature"
-        }
-        
-        with patch.object(self.authenticator, '_verify_server_certificate', return_value=False):
-            # Should return False for invalid certificate
-            result = self.authenticator.validate_server_response(challenge_id, invalid_cert_response)
-            self.assertFalse(result)
-    
-    def test_signature_verification_failure(self):
-        """Test handling of signature verification failures"""
-        server_url = "https://mcp-server.example.com"
-        
-        # Initiate handshake
-        challenge = self.authenticator.initiate_server_handshake(server_url, self.client_identity)
-        challenge_id = challenge["challenge_id"]
-        
-        # Mock response with invalid signature
-        invalid_sig_response = {
-            "challenge_id": challenge_id,
-            "server_identity": "mcp-server@example.com",
-            "capabilities": ["tool_discovery", "secure_invoke"],
-            "certificate": "valid_cert_data",
-            "signature": "invalid_signature"
-        }
-        
-        with patch.object(self.authenticator, '_verify_server_certificate', return_value=True), \
-             patch.object(self.authenticator, '_verify_response_signature', return_value=False):
-            
-            # Should return False for invalid signature
-            result = self.authenticator.validate_server_response(challenge_id, invalid_sig_response)
-            self.assertFalse(result)
-    
-    def test_handshake_timeout_handling(self):
-        """Test handling of handshake timeouts"""
-        # Create authenticator with short timeout for testing
-        short_timeout_auth = RemoteServerAuthenticator(handshake_timeout=1)
-        
-        server_url = "https://mcp-server.example.com"
-        challenge = short_timeout_auth.initiate_server_handshake(server_url, self.client_identity)
-        challenge_id = challenge["challenge_id"]
-        
-        # Simulate timeout by modifying challenge timestamp
-        import time
-        time.sleep(2)  # Wait longer than timeout
-        
-        # Mock response should fail due to timeout
-        response = {
-            "challenge_id": challenge_id,
-            "server_identity": "server@example.com",
-            "capabilities": ["tool_discovery", "secure_invoke"],
-            "certificate": "valid_cert_data",
-            "signature": "valid_signature"
-        }
-        
-        # Should return False due to timeout
-        result = short_timeout_auth.validate_server_response(challenge_id, response)
-        self.assertFalse(result)
-    
-    def test_server_capability_validation(self):
-        """Test validation of server capabilities"""
-        server_url = "https://mcp-server.example.com"
-        
-        # Initiate handshake
-        challenge = self.authenticator.initiate_server_handshake(server_url, self.client_identity)
-        challenge_id = challenge["challenge_id"]
-        
-        # Test response with insufficient capabilities
-        insufficient_caps_response = {
-            "challenge_id": challenge_id,
-            "server_identity": "mcp-server@example.com",
-            "capabilities": ["tool_discovery"],  # Missing "secure_invoke"
-            "certificate": "valid_cert_data",
-            "signature": "valid_signature"
-        }
-        
-        with patch.object(self.authenticator, '_verify_server_certificate', return_value=True), \
-             patch.object(self.authenticator, '_verify_response_signature', return_value=True), \
-             patch.object(self.authenticator, '_validate_server_capabilities', return_value=False):
-            
-            # Should return False for insufficient capabilities
-            result = self.authenticator.validate_server_response(challenge_id, insufficient_caps_response)
-            self.assertFalse(result)
-        
-        print("✅ RemoteServerAuthenticator: Secure server communication validated")
 
 
 class TestToolExposureController(unittest.TestCase):

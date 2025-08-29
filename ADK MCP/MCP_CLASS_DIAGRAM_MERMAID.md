@@ -357,7 +357,7 @@ classDiagram
 
     class Layer2 {
         <<Agent Service>>
-        6 Security Controls
+        5 Security Controls
         LLM Protection
     }
 
