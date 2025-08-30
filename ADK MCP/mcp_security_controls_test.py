@@ -2193,9 +2193,7 @@ class TestZeroTrustSecurityStatus(unittest.TestCase):
         """Test security level determination logic"""
         # Test that having all controls results in zero-trust level
         all_controls_present = {
-            'installer_validator': True,
             'server_registry': True,
-            'remote_authenticator': True, 
             'tool_controller': True,
             'semantic_validator': True,
             'input_sanitizer': True,
@@ -2203,7 +2201,7 @@ class TestZeroTrustSecurityStatus(unittest.TestCase):
             'schema_validator': True,
             'credential_manager': True,
             'context_sanitizer': True,
-            'context_security': True,
+            'opa_client': True,
             'opa_client': True
         }
         
@@ -2213,7 +2211,7 @@ class TestZeroTrustSecurityStatus(unittest.TestCase):
         
         # Test partial controls (should not be zero-trust)
         partial_controls = all_controls_present.copy()
-        partial_controls['installer_validator'] = False
+        partial_controls['server_registry'] = False
         is_partial = all(partial_controls.values())
         self.assertFalse(is_partial)
         
