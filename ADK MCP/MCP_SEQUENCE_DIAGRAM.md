@@ -26,7 +26,7 @@ This document provides sequence diagrams showing the complete end-to-end flow th
 │   - AgentResponseSanitizer → ContextSanitizer (MCP)            │
 │   - SecurityAuditor (Agent-specific)                           │
 │ • Layer 3: 9 MCP Server Controls (Shared Framework)            │
-│ • Total: 18 Security Controls with Intelligent Delegation      │
+│ • Total: 17 Security Controls with Intelligent Delegation      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

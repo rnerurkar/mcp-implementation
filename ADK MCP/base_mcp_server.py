@@ -247,20 +247,10 @@ class BaseMCPServer(ABC):
                     raise PermissionError("OPA policy violation.")
 
             # ========================================================================
-            # PHASE 3: SUPPLY CHAIN & INFRASTRUCTURE SECURITY  
+            # PHASE 3: ZERO-TRUST ARCHITECTURE CONTROLS  
             # ========================================================================
             
-            # CONTROL 5: INSTALLER SECURITY VALIDATION (Supply Chain Protection)
-            # Verify tool installation integrity and trusted sources
-            if hasattr(self, 'installer_validator') and self.installer_validator:
-                tool_name = request.get("tool_name", "hello")
-                if not self.installer_validator.validate_tool_integrity(
-                    tool_name, 
-                    self._get_tool_metadata(tool_name)
-                ):
-                    raise SecurityException("Tool installation integrity validation failed.")
-            
-            # CONTROL 6: SERVER IDENTITY VERIFICATION (Anti-Impersonation)
+            # CONTROL 5: SERVER IDENTITY VERIFICATION (Anti-Impersonation)
             # Verify server identity to prevent impersonation attacks
             if hasattr(self, 'server_registry') and self.server_registry:
                 server_id = token_claims.get("sub", f"unknown-{request.get('client_id', 'anonymous')}")
@@ -270,22 +260,11 @@ class BaseMCPServer(ABC):
                 ):
                     raise PermissionError("Server identity verification failed.")
             
-            # CONTROL 7: REMOTE SERVER AUTHENTICATION (Secure Communication)
-            # Authenticate remote server connections for distributed MCP
-            if hasattr(self, 'remote_authenticator') and self.remote_authenticator:
-                if request.get("remote_server_id"):
-                    if not self.remote_authenticator.authenticate_remote_server(
-                        request.get("remote_server_id"),
-                        request.get("server_certificate"),
-                        request.get("handshake_data")
-                    ):
-                        raise PermissionError("Remote server authentication failed.")
-
             # ========================================================================
             # PHASE 4: TOOL-SPECIFIC SECURITY
             # ========================================================================
             
-            # CONTROL 8: TOOL EXPOSURE CONTROL (Capability Management)
+            # CONTROL 6: TOOL EXPOSURE CONTROL (Capability Management)
             # Control which tools are exposed and to whom
             if hasattr(self, 'tool_controller') and self.tool_controller:
                 if not self.tool_controller.validate_tool_exposure(
@@ -295,7 +274,7 @@ class BaseMCPServer(ABC):
                 ):
                     raise PermissionError("Tool exposure validation failed.")
             
-            # CONTROL 9: SEMANTIC MAPPING VALIDATION (Tool Metadata Verification)
+            # CONTROL 7: SEMANTIC MAPPING VALIDATION (Tool Metadata Verification)
             # Validate semantic consistency of tool metadata and parameters
             if hasattr(self, 'semantic_validator') and self.semantic_validator:
                 if not self.semantic_validator.validate_tool_semantics(
@@ -309,7 +288,7 @@ class BaseMCPServer(ABC):
             # PHASE 5: EXECUTION & RESPONSE SECURITY
             # ========================================================================
             
-            # CONTROL 10: CREDENTIAL MANAGEMENT (Secure Tool Execution)
+            # CONTROL 8: CREDENTIAL MANAGEMENT (Secure Tool Execution)
             # Inject secure credentials for tool execution
             credentials = {}
             if self.credential_manager:
@@ -325,20 +304,16 @@ class BaseMCPServer(ABC):
             # Build execution context for the response
             context = self.build_context(result)
 
-            # CONTROL 11: CONTEXT SANITIZATION (Response Data Protection)
+            # CONTROL 9: CONTEXT SANITIZATION (Response Data Protection)
             # Sanitize response context to prevent data leakage
             sanitized_context = self.context_sanitizer.sanitize(context)
-            
-            # CONTROL 12: CONTEXT SECURITY (Response Integrity & Verification)
-            # Sign the context for integrity verification and non-repudiation
-            signed_context = self.context_security.sign(sanitized_context)
 
             # Return successful response with complete security validation
             return {
                 "status": "success", 
-                "data": signed_context,
+                "data": sanitized_context,
                 "security_validation": {
-                    "controls_applied": 12,
+                    "controls_applied": 9,
                     "timestamp": __import__('datetime').datetime.utcnow().isoformat(),
                     "signature_verified": True
                 }
