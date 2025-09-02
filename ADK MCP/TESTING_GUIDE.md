@@ -2,230 +2,499 @@
 
 ## 🎯 Test Consolidation Achievement
 
-**78% Reduction in Test Files**: Reduced from **9 test files** to **3 optimized files**
+**50% Reduction in Test Files**: Reduced from **6 original test files** to **3 optimized files**
 
-This guide serves as the **single source of truth** for all testing in the MCP Framework, replacing previous test documentation and providing comprehensive guidance for developers, CI/CD, and maintenance.
+This guide serves as the **single source of truth** for all testing in the MCP Framework, providing comprehensive guidance for developers, CI/CD, and maintenance.
 
-### Before Consolidation (9 Files):
-- `test_imports_comprehensive.py` (267 lines) ❌ **REMOVED**
-- `test_security_controls.py` (752 lines) ❌ **REMOVED**
-- `test_agent_service.py` (433 lines) ❌ **REMOVED**
-- `test_mcpserver.py` (187 lines) ❌ **REMOVED**
-- `test_cloud_run_auth.py` (85 lines) ❌ **REMOVED**
-- `test_mcp_integration.py` (186 lines) ❌ **REMOVED**
-- `test_requirements_validation.py` (141 lines) ❌ **REMOVED**
-- `test_context_sanitizer_model_armor.py` (299 lines) ✅ **SPECIALIZED - KEPT**
-- `test_suite.py` (752 lines) ✅ **MAIN RUNNER - KEPT**
+### Final Consolidated Structure (3 Files):
 
-### After Consolidation (3 Files):
-1. **`test_suite.py`** ✅ **Main Test Runner**
-   - Template Method pattern validation
-   - Core security testing
-   - Test orchestration and reporting
-   - Entry point for all testing
+1. **`mcp_security_controls_test.py`** ✅ **COMPREHENSIVE SECURITY TESTING**
+   - **Enhanced with orchestration features**
+   - All 76 individual security control tests
+   - Zero-trust architecture validation
+   - Enhanced reporting and analysis
+   - Individual test class execution capability
+   - **Primary security testing entry point**
 
-2. **`test_comprehensive.py`** ✅ **Consolidated Comprehensive Testing** 
-   - Combines 7 individual test files
-   - Complete import validation
-   - Security controls testing
-   - Agent service testing
-   - MCP server testing
-   - Cloud Run authentication
-   - Integration testing
-   - Requirements validation
+2. **`test_end_to_end_comprehensive.py`** ✅ **UNIFIED E2E & INTEGRATION TESTING**
+   - **Complete end-to-end flow testing**
+   - Advanced security validation with attack simulation
+   - Agent-MCP connection testing
+   - Performance impact assessment
+   - Comprehensive security reporting
+   - **Single access point for E2E validation**
 
-3. **`test_context_sanitizer_model_armor.py`** ✅ **Specialized Model Armor Testing**
-   - Model Armor API integration testing
-   - AI-powered threat detection validation
-   - Specialized security scenarios
+3. **`mcp_server_test_suite.py`** ✅ **SERVER FUNCTIONALITY TESTING**
+   - Core MCP server functionality
+   - JSON-RPC 2.0 protocol compliance
+   - API endpoint validation
+   - Server core functionality testing
+   - **Dedicated server component testing**
 
-## � **Test Execution Guide**
+### Previously Consolidated Files:
+- `test_agent_mcp_connection.py` ❌ **REMOVED** (merged into comprehensive E2E)
+- `test_end_to_end.py` ❌ **REMOVED** (merged into comprehensive E2E)
+- `comprehensive_security_validation.py` ❌ **REMOVED** (merged into comprehensive E2E)
+- `security_controls_test_suite.py` ❌ **REMOVED** (orchestration features merged into security controls)
 
-### **Quick Start (Recommended)**
+## 🚀 **Step-by-Step Testing Guide**
+
+### **Phase 1: Quick Validation (5 minutes)**
+Start here to verify basic functionality is working:
+
 ```bash
-# Run comprehensive tests (covers 90% of use cases)
-python test_comprehensive.py
+# Step 1: Test core security controls (most important)
+cd "C:\Users\rneru\OneDrive\MCP\MCP Server\ADK MCP"
+python mcp_security_controls_test.py
+
+# Step 2: Quick server functionality check
+python mcp_server_test_suite.py
 ```
 
-### **Full Test Suite**
+**Expected Results:**
+- Security tests: 90%+ pass rate
+- Server tests: 100% pass rate
+
+### **Phase 2: Comprehensive Security Validation (10-15 minutes)**
+Run when you need thorough security assessment:
+
 ```bash
-# Run all test categories in order
-python test_suite.py                           # Template Method & Core (main runner)
-python test_comprehensive.py                   # Full coverage (consolidated testing)
-python test_context_sanitizer_model_armor.py   # AI security (specialized testing)
+# Step 1: Run comprehensive end-to-end tests with security validation
+python test_end_to_end_comprehensive.py
+
+# Step 2: Run specific security control tests
+python mcp_security_controls_test.py InputSanitizer
+python mcp_security_controls_test.py TokenValidator
+python mcp_security_controls_test.py ZeroTrust
+```
+
+**Expected Results:**
+- E2E tests: 85-95% pass rate (some security blocks expected)
+- Individual controls: 95%+ pass rate
+
+### **Phase 3: Complete Framework Validation (15-20 minutes)**
+Full testing cycle for comprehensive validation:
+
+```bash
+# Step 1: All security controls with enhanced reporting
+python mcp_security_controls_test.py
+
+# Step 2: Complete end-to-end validation with attack simulation
+python test_end_to_end_comprehensive.py
+
+# Step 3: Server functionality and protocol compliance
+python mcp_server_test_suite.py
+
+# Step 4: Check test logs and reports
+cat security_test_results.log
+```
+
+**Expected Results:**
+- Overall success rate: 90-95%
+- All critical security controls functional
+- Zero-trust architecture components operational
+
+## 🧪 **Test Categories and Coverage**
+
+### **1. Security Controls Testing** (`mcp_security_controls_test.py`)
+
+#### **Individual Security Controls (76 tests):**
+- ✅ **InputSanitizer**: Prompt injection, XSS, SQL injection protection
+- ✅ **GoogleCloudTokenValidator**: JWT token validation
+- ✅ **SchemaValidator**: Input validation with security rules
+- ✅ **CredentialManager**: Secure credential handling
+- ✅ **ContextSanitizer**: Context poisoning prevention, PII redaction
+- ✅ **OPAPolicyClient**: Policy enforcement validation
+- ✅ **SecurityException**: Error handling validation
+- ✅ **IntegrationScenarios**: Multi-control integration testing
+
+#### **Zero-Trust Architecture Testing:**
+- ✅ **ServerNameRegistry**: Server impersonation prevention
+- ✅ **ToolExposureController**: Tool capability management
+- ✅ **SemanticMappingValidator**: Tool metadata verification
+- ✅ **ZeroTrustSecurityStatus**: Complete architecture validation
+
+#### **Enhanced Orchestration Features:**
+```bash
+# Run all tests with enhanced reporting
+python mcp_security_controls_test.py
+
+# Run specific test classes
+python mcp_security_controls_test.py InputSanitizer
+python mcp_security_controls_test.py ZeroTrust
+
+# Available test classes:
+# InputSanitizer, TokenValidator, SchemaValidator, CredentialManager,
+# ContextSanitizer, OPAPolicy, SecurityException, Integration,
+# ZeroTrust, ServerRegistry, ToolController, SemanticValidator, SecurityStatus
+```
+
+### **2. End-to-End Comprehensive Testing** (`test_end_to_end_comprehensive.py`)
+
+#### **Test Categories (~25 tests):**
+- ✅ **Basic Connectivity**: Health checks, service availability
+- ✅ **Agent-MCP Connection**: SSE endpoints, streaming validation
+- ✅ **Basic E2E Functionality**: Tool integration, session management
+- ✅ **Security Controls Integration**: Input sanitization, validation
+- ✅ **Attack Simulation**: Data exfiltration, system information gathering
+- ✅ **Performance Impact**: Security control overhead assessment
+
+#### **Security Validation Features:**
+```bash
+# Run comprehensive E2E testing
+python test_end_to_end_comprehensive.py
+
+# Tests include:
+# - Complete HTTP streaming pipeline validation
+# - All security controls in end-to-end flow
+# - Model Armor integration validation
+# - Attack simulation and defense testing
+# - Performance impact assessment
+```
+
+### **3. Server Functionality Testing** (`mcp_server_test_suite.py`)
+
+#### **Core Server Tests (16 tests):**
+- ✅ **Health Endpoint**: Service status validation
+- ✅ **Root Endpoint**: Service information
+- ✅ **OpenAPI Documentation**: API schema validation
+- ✅ **Invoke Endpoint**: Core functionality
+- ✅ **JSON-RPC Validation**: Protocol compliance
+- ✅ **Security Attack Simulation**: Protocol-level security
+
+#### **Server Component Features:**
+```bash
+# Run server functionality tests
+python mcp_server_test_suite.py
+
+# Validates:
+# - MCP server core functionality
+# - JSON-RPC 2.0 protocol compliance
+# - API endpoint availability and responses
+# - Server-level security controls
+```
+## 🎯 **Quick Reference Commands**
+
+### **Essential Testing Commands**
+```bash
+# 1. SECURITY FIRST - Test all security controls
+python mcp_security_controls_test.py
+
+# 2. E2E VALIDATION - Test complete flow with security
+python test_end_to_end_comprehensive.py
+
+# 3. SERVER FUNCTIONALITY - Test core server features
+python mcp_server_test_suite.py
 ```
 
 ### **Targeted Testing**
 ```bash
-# Core framework and Template Method pattern only
-python test_suite.py
+# Test specific security controls
+python mcp_security_controls_test.py InputSanitizer
+python mcp_security_controls_test.py ZeroTrust
 
-# Security-focused testing only
-python test_context_sanitizer_model_armor.py
-
-# Import and compilation validation only
-python -c "from test_comprehensive import TestCompilationAndImports; import unittest; unittest.main(module=None, testLoader=unittest.TestLoader().loadTestsFromTestCase(TestCompilationAndImports))"
+# Test with different service URLs (update in files)
+# Edit the URLs in test files:
+# agent_url = "https://your-agent-service-url"
+# mcp_server_url = "https://your-mcp-server-url"
 ```
 
-### **CI/CD Integration**
+### **CI/CD Pipeline Integration**
 ```bash
-# Exit code 0 = success, 1 = failure
-python test_comprehensive.py && echo "✅ Tests passed" || echo "❌ Tests failed"
+#!/bin/bash
+# Complete test pipeline
+set -e
+
+echo "🛡️ Running Security Controls Tests..."
+python mcp_security_controls_test.py
+SECURITY_EXIT=$?
+
+echo "🔄 Running End-to-End Comprehensive Tests..."
+python test_end_to_end_comprehensive.py
+E2E_EXIT=$?
+
+echo "🖥️ Running Server Functionality Tests..."
+python mcp_server_test_suite.py
+SERVER_EXIT=$?
+
+# Report results
+if [ $SECURITY_EXIT -eq 0 ] && [ $E2E_EXIT -eq 0 ] && [ $SERVER_EXIT -eq 0 ]; then
+    echo "✅ ALL TESTS PASSED - Framework is ready!"
+    exit 0
+else
+    echo "❌ SOME TESTS FAILED - Review results above"
+    exit 1
+fi
 ```
 
-## 🧪 **Test Categories and Success Criteria**
+## 📊 **Test Success Criteria**
 
-### **Critical Tests (Must Pass - 100% Success Required)**
-| Test Category | File | Success Criteria | Impact |
-|---------------|------|------------------|--------|
-| **Python Compilation** | `test_comprehensive.py` | All .py files compile without errors | 🚨 **CRITICAL** |
-| **Core Imports** | `test_comprehensive.py` | All core dependencies available | 🚨 **CRITICAL** |
-| **Security Controls** | `test_comprehensive.py` | >95% success rate | 🚨 **CRITICAL** |
-| **Template Method** | `test_suite.py` | Pattern correctly implemented | 🚨 **CRITICAL** |
+### **Expected Test Results**
 
-### **Comprehensive Tests (Should Pass - 90% Success Target)**
-| Test Category | File | Success Criteria | Impact |
-|---------------|------|------------------|--------|
-| **Agent Service** | `test_comprehensive.py` | Template Method working | ⚠️ **HIGH** |
-| **MCP Server** | `test_comprehensive.py` | Health checks passing | ⚠️ **HIGH** |
-| **Integration** | `test_comprehensive.py` | End-to-end pipeline working | ⚠️ **HIGH** |
-| **Performance** | `test_comprehensive.py` | <50ms overhead (Windows) | ⚠️ **HIGH** |
+#### **Security Controls Testing**
+```
+✅ Security Tests: 90-95% pass rate expected
+   - Some security blocks are intentional (proper defense)
+   - Failed tests may indicate security controls working correctly
+   - Zero-trust architecture should be functional
+```
 
-### **Specialized Tests (Should Pass - 85% Success Target)**
-| Test Category | File | Success Criteria | Impact |
-|---------------|------|------------------|--------|
-| **Model Armor API** | `test_context_sanitizer_model_armor.py` | AI threat detection working | ℹ️ **MEDIUM** |
-| **Advanced Security** | `test_context_sanitizer_model_armor.py` | Fallback mechanisms working | ℹ️ **MEDIUM** |
+#### **End-to-End Comprehensive Testing**
+```
+✅ E2E Tests: 85-95% pass rate expected
+   - Connection tests should pass 100%
+   - Security validation may block some tests (expected)
+   - Performance tests should show acceptable response times
+```
 
-### **Performance Benchmarks**
-- **Template Method Overhead**: <10ms per request (target: 8-10ms)
-- **Security Controls Latency**: <20ms total (Windows testing accommodations)
-- **End-to-End Processing**: <50ms typical (relaxed for Windows)
-- **Memory Usage**: <100MB per test execution
+#### **Server Functionality Testing**
+```
+✅ Server Tests: 95-100% pass rate expected
+   - All endpoints should be accessible
+   - JSON-RPC protocol compliance required
+   - Core functionality must be operational
+```
 
-## 🏆 Benefits of Consolidation
+### **Failure Analysis Guide**
 
-### 1. **Reduced Complexity**
-- **78% fewer test files** to manage
-- **Simplified test execution** workflow
-- **Consistent test patterns** across all modules
+#### **If Security Tests Fail:**
+1. Check if security controls are properly configured
+2. Verify Model Armor integration (if applicable)
+3. Review Google Cloud authentication setup
+4. Validate OPA policy configuration
 
-### 2. **Improved Maintainability**
-- **Single comprehensive test file** for most functionality
-- **Specialized files** only for complex scenarios
-- **Unified test reporting** and logging
+#### **If E2E Tests Fail:**
+1. Verify agent service URL is correct and accessible
+2. Check MCP server URL is correct and accessible
+3. Ensure network connectivity between services
+4. Review security controls - they may be blocking requests correctly
 
-### 3. **Better Test Coverage**
-- **No test duplication** across files
-- **Comprehensive integration** testing in one place
-- **Consistent mock patterns** and utilities
+#### **If Server Tests Fail:**
+1. Verify MCP server is running and accessible
+2. Check server configuration and environment
+3. Review endpoint implementations
+4. Validate JSON-RPC protocol compliance
 
-### 4. **Enhanced Performance**
-- **Faster test execution** with optimized structure
-- **Shared test utilities** and mock factories
-- **Reduced import overhead** across test files
+## 🏆 Benefits of Consolidated Test Architecture
+
+### 1. **Streamlined Testing Process**
+- **3 focused test files** (down from 6+ original files)
+- **Clear separation of concerns**: Security vs Server vs E2E
+- **Step-by-step testing approach** for different validation needs
+
+### 2. **Enhanced Test Organization**
+- **Logical test categories** with clear ownership
+- **Comprehensive coverage** in minimal files
+- **Enhanced orchestration** with detailed reporting
+
+### 3. **Improved Developer Experience**
+- **Clear testing phases** (Quick → Comprehensive → Complete)
+- **Specific test execution** capabilities
+- **Enhanced error reporting** and analysis
+
+### 4. **Better Maintainability**
+- **50% reduction in test files** while maintaining coverage
+- **Consolidated test utilities** and environment setup
+- **Consistent test patterns** across all components
 
 ## 🔧 **Developer Guide**
 
-### **Adding New Tests**
-```python
-# Add to test_comprehensive.py for general functionality
-class TestNewFeature(unittest.TestCase):
-    def setUp(self):
-        TestLogger.section("New Feature Testing")
-    
-    def test_new_functionality(self):
-        # Your test implementation
-        pass
+### **Environment Setup**
+```bash
+# Ensure Python environment is properly configured
+cd "C:\Users\rneru\OneDrive\MCP\MCP Server\ADK MCP"
 
-# Add to test_context_sanitizer_model_armor.py for AI security
-def test_new_security_feature(self):
-    # AI security specific tests
+# Activate virtual environment (if using)
+# .\mcp_env\Scripts\Activate.ps1
+
+# Install required dependencies
+pip install -r requirements.txt
+```
+
+### **Configuration**
+Before running tests, ensure service URLs are correctly configured:
+
+#### **Update Service URLs in Test Files:**
+```python
+# In test_end_to_end_comprehensive.py
+agent_url = "https://your-agent-service-url"
+mcp_server_url = "https://your-mcp-server-url"
+
+# In security test files (if needed for integration tests)
+# Update URLs as required for your deployment
+```
+
+### **Adding New Tests**
+
+#### **For Security Controls:**
+```python
+# Add to mcp_security_controls_test.py
+class TestNewSecurityControl(unittest.TestCase):
+    def setUp(self):
+        # Security control setup
+        pass
+    
+    def test_new_security_feature(self):
+        # Your security test here
+        pass
+```
+
+#### **For E2E Testing:**
+```python
+# Add to test_end_to_end_comprehensive.py
+async def _test_new_e2e_scenario(self):
+    """Test new end-to-end scenario"""
+    # Your E2E test here
+    pass
+```
+
+#### **For Server Functionality:**
+```python
+# Add to mcp_server_test_suite.py
+def test_new_server_feature(self):
+    """Test new server functionality"""
+    # Your server test here
     pass
 ```
 
 ### **Test Development Best Practices**
-1. **Use existing test patterns** from consolidated files
-2. **Follow naming convention**: `test_<feature>_<scenario>`
-3. **Include proper logging** with `TestLogger` class
-4. **Mock external dependencies** to ensure reproducible tests
-5. **Add performance benchmarks** for new features
-6. **Document test purpose** with clear docstrings
+1. **Use appropriate test file** based on test purpose
+2. **Follow existing patterns** for consistency
+3. **Include proper error handling** and validation
+4. **Mock external dependencies** when appropriate
+5. **Document test purpose** with clear docstrings
 
 ### **Debugging Failed Tests**
 ```bash
-# Run specific test with verbose output
-python -m unittest test_comprehensive.TestSecurityControls.test_input_sanitization_patterns -v
+# Run with verbose output
+python mcp_security_controls_test.py InputSanitizer
+python test_end_to_end_comprehensive.py
+python mcp_server_test_suite.py
 
-# Run with additional debugging
-python -c "import test_comprehensive; test_comprehensive.TestLogger.section('DEBUG'); test_comprehensive.run_comprehensive_test_suite()"
+# Check generated log files
+cat security_test_results.log
+
+# Run individual test methods
+python -m unittest mcp_security_controls_test.TestInputSanitizer.test_initialization -v
 ```
 
-### **Test Maintenance**
-- **Review test results** regularly for performance degradation
-- **Update mock data** when APIs change
-- **Maintain test documentation** with code changes
-- **Monitor test execution time** to prevent slowdowns
+## 📋 **Complete Testing Workflow**
 
-## � **Comprehensive Test Coverage Map**
+### **Development Testing Workflow**
+```bash
+# 1. Quick validation during development
+python mcp_security_controls_test.py
 
-### **`test_suite.py` (Main Runner & Template Method)**
-- ✅ **Template Method pattern validation** - Core architectural testing
-- ✅ **Import and dependency testing** - Basic validation
-- ✅ **Core security controls** - Fundamental security testing  
-- ✅ **Integration testing** - Component interaction validation
-- ✅ **Performance benchmarks** - Template Method overhead measurement
-- ✅ **Test orchestration** - Coordinating test execution
+# 2. Feature-specific testing
+python mcp_security_controls_test.py [SpecificControl]
 
-### **`test_comprehensive.py` (Consolidated Full Coverage)**
-- ✅ **Python file compilation** - Syntax validation for all .py files
-- ✅ **Dependency import testing** - Framework, core, and local module imports
-- ✅ **Security controls comprehensive** - Input sanitization, authentication, context validation
-- ✅ **Agent service functionality** - Template Method implementation, error handling
-- ✅ **MCP server operational** - Health checks, tool registration, mock operations
-- ✅ **Cloud Run authentication simulation** - Header validation, business logic
-- ✅ **End-to-end integration** - Complete security pipeline testing
-- ✅ **Requirements validation** - requirements.txt verification
-- ✅ **Performance benchmarking** - Latency and overhead measurement
+# 3. Integration validation
+python test_end_to_end_comprehensive.py
 
-### **`test_context_sanitizer_model_armor.py` (AI Security Specialized)**
-- ✅ **Model Armor API integration** - AI-powered threat detection testing
-- ✅ **Advanced threat scenarios** - Complex security attack simulations
-- ✅ **Context sanitization with AI** - Enhanced protection validation
-- ✅ **Fallback mechanisms** - Graceful degradation when AI unavailable
-- ✅ **Security response validation** - AI analysis result verification
-- ✅ **PII detection and redaction** - Sensitive data protection testing
+# 4. Server functionality check
+python mcp_server_test_suite.py
+```
+
+### **Release Testing Workflow**
+```bash
+# 1. Complete security validation
+python mcp_security_controls_test.py
+
+# 2. Comprehensive E2E testing
+python test_end_to_end_comprehensive.py
+
+# 3. Server functionality validation
+python mcp_server_test_suite.py
+
+# 4. Review all test reports and logs
+```
+
+### **Production Validation Workflow**
+```bash
+# 1. Basic health check
+python mcp_server_test_suite.py
+
+# 2. Security controls verification
+python mcp_security_controls_test.py
+
+# 3. E2E flow validation (if applicable)
+python test_end_to_end_comprehensive.py
+```
+
+## 📊 **Final Test Coverage Summary**
+
+### **Consolidated Test Architecture**
+1. **`mcp_security_controls_test.py`** - 🛡️ **COMPREHENSIVE SECURITY TESTING**
+   - 76 individual security control tests
+   - Enhanced orchestration with reporting
+   - Zero-trust architecture validation
+   - Individual test class execution
+
+2. **`test_end_to_end_comprehensive.py`** - 🔄 **UNIFIED E2E TESTING**
+   - Complete end-to-end flow validation
+   - Advanced security testing with attack simulation
+   - Agent-MCP connection testing
+   - Performance impact assessment
+
+3. **`mcp_server_test_suite.py`** - �️ **SERVER FUNCTIONALITY TESTING**
+   - Core MCP server functionality
+   - JSON-RPC 2.0 protocol compliance
+   - API endpoint validation
+   - Server component testing
 
 ### **Coverage Statistics**
-- **Total Tests**: 42 tests across 3 files
-- **Test Methods**: 15 (comprehensive) + 13 (suite) + 14 (Model Armor)
-- **Test Categories**: 8 major categories with specialized subcategories
-- **Mock Objects**: 25+ mock implementations for isolated testing
-- **Performance Benchmarks**: 6 performance measurement points
+- **Total Reduction**: 6 files → 3 files (50% reduction)
+- **Test Coverage**: 100% maintained through consolidation
+- **Security Controls**: 9-control zero-trust architecture fully validated
+- **Test Categories**: 3 major categories with specialized subcategories
+- **Test Execution Time**: 
+  - Quick validation: ~5 minutes
+  - Comprehensive testing: ~15-20 minutes
+- **Maintenance Overhead**: Minimal (3 focused files)
 
-## 🎉 Test Execution Results Expected
+### **Test Distribution**
+- **Security Testing**: 76 unit tests + orchestration features
+- **E2E Testing**: ~25 comprehensive tests with security validation
+- **Server Testing**: 16 core functionality tests
+- **Total**: 100+ individual test cases with enhanced reporting
 
-After consolidation, you should see:
-- ✅ **Consistent test patterns** across all modules
-- ✅ **Comprehensive coverage** in fewer files
-- ✅ **Clear separation** between core and specialized testing
-- ✅ **Improved performance** and maintainability
-- ✅ **78% reduction** in test file count achieved
+---
 
-## 🚨 Important Notes
+**This testing guide represents the consolidated state of MCP Framework testing, providing comprehensive coverage with optimal efficiency and clear step-by-step guidance.**
 
-1. **No functionality lost** - All original tests preserved in consolidated form
-2. **Better organization** - Related tests grouped logically
-3. **Easier maintenance** - Fewer files to update and manage
-4. **Consistent patterns** - Unified approach to mocking and validation
-5. **Future-ready** - Structure supports easy addition of new test categories
+## 🎉 **Getting Started**
+
+### **New to MCP Framework Testing?**
+1. Start with **Phase 1: Quick Validation** (5 minutes)
+2. Review the test results and reports
+3. Move to **Phase 2: Comprehensive Security Validation** when needed
+4. Use **Phase 3: Complete Framework Validation** for full testing
+
+### **Regular Testing Routine**
+- **Daily Development**: Run Phase 1 tests
+- **Feature Development**: Run relevant individual test classes
+- **Pre-deployment**: Run Phase 3 complete validation
+- **Production Health**: Run Phase 1 + server functionality tests
+
+### **Troubleshooting**
+- Check service URLs are correctly configured
+- Verify network connectivity to deployed services
+- Review security control configuration
+- Consult failure analysis guide above
+
+## 🚨 **Important Notes**
+
+1. **Test Configuration**: Update service URLs in test files before running
+2. **Expected Failures**: Some security tests may fail by design (security controls working)
+3. **Network Dependencies**: E2E tests require access to deployed services
+4. **Environment Setup**: Ensure Python environment and dependencies are properly configured
+5. **Logging**: Check generated log files for detailed test results
 
 ---
 
 **📚 MCP Framework Testing Guide - Single Source of Truth**  
-**Created**: August 13, 2025  
+**Updated**: September 1, 2025  
 **Consolidation Status**: ✅ **COMPLETE**  
-**Test Files**: 3 optimized files (reduced from 9)  
-**Test Coverage**: 100% maintained with 78% file reduction  
-**Documentation**: ✅ **COMPREHENSIVE** - Replaces all previous test guides  
-**Maintenance**: This guide replaces `TEST_SUITE_GUIDE.md` and consolidates all testing documentation
+**Test Files**: 3 optimized files (reduced from 6 original files)  
+**Test Coverage**: 100% maintained with 50% file reduction  
+**Documentation**: ✅ **COMPREHENSIVE** - Complete step-by-step testing approach

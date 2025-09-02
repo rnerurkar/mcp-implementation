@@ -1,0 +1,8 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.agentservice', '-t', 'gcr.io/$PROJECT_ID/agent-service', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/agent-service']
+images:
+- 'gcr.io/$PROJECT_ID/agent-service'
+timeout: '1200s'

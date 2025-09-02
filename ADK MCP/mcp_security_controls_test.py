@@ -2218,6 +2218,202 @@ class TestZeroTrustSecurityStatus(unittest.TestCase):
         print("✅ Security Level Logic: Zero-trust determination validated")
 
 
+# ENHANCED ORCHESTRATION FEATURES (merged from security_controls_test_suite.py)
+class SecurityTestOrchestrator:
+    """Enhanced test orchestration with reporting and analysis"""
+    
+    def __init__(self):
+        """Initialize test orchestrator"""
+        self.test_results = []
+        self.start_time = None
+        self.end_time = None
+    
+    def run_comprehensive_security_tests(self):
+        """Run comprehensive security tests with enhanced reporting"""
+        print("🛡️" * 60)
+        print("🚀 COMPREHENSIVE MCP SECURITY CONTROLS TEST SUITE")
+        print("🛡️" * 60)
+        print(f"🕐 Test started at: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print()
+        
+        self.start_time = time.time()
+        
+        # Create test suite
+        loader = unittest.TestLoader()
+        suite = unittest.TestSuite()
+        
+        # Add all test classes
+        test_classes = [
+            TestInputSanitizer,
+            TestGoogleCloudTokenValidator,
+            TestSchemaValidator,
+            TestCredentialManager,
+            TestContextSanitizer,
+            TestOPAPolicyClient,
+            TestSecurityException,
+            TestIntegrationScenarios,
+            TestZeroTrustSecurityArchitecture,
+            TestServerNameRegistry,
+            TestToolExposureController,
+            TestSemanticMappingValidator,
+            TestZeroTrustSecurityStatus
+        ]
+        
+        for test_class in test_classes:
+            tests = loader.loadTestsFromTestClass(test_class)
+            suite.addTests(tests)
+        
+        # Run tests with custom result handler
+        runner = unittest.TextTestRunner(
+            verbosity=2, 
+            stream=open('security_test_results.log', 'w'),
+            resultclass=EnhancedTestResult
+        )
+        
+        result = runner.run(suite)
+        
+        self.end_time = time.time()
+        
+        # Generate enhanced report
+        self._generate_enhanced_report(result)
+        
+        return result.wasSuccessful()
+    
+    def _generate_enhanced_report(self, result):
+        """Generate enhanced test report with security analysis"""
+        print("\n" + "🛡️" * 60)
+        print("📊 ENHANCED SECURITY TEST REPORT")
+        print("🛡️" * 60)
+        
+        # Calculate statistics
+        total_tests = result.testsRun
+        errors = len(result.errors)
+        failures = len(result.failures)
+        passed = total_tests - errors - failures
+        success_rate = (passed / total_tests * 100) if total_tests > 0 else 0
+        duration = self.end_time - self.start_time
+        
+        print(f"\n📈 OVERALL STATISTICS:")
+        print(f"   Total Tests: {total_tests}")
+        print(f"   Passed Tests: {passed}")
+        print(f"   Failed Tests: {failures}")
+        print(f"   Error Tests: {errors}")
+        print(f"   Success Rate: {success_rate:.1f}%")
+        print(f"   Total Duration: {duration:.2f} seconds")
+        
+        # Security control coverage analysis
+        security_controls = [
+            "InputSanitizer", "GoogleCloudTokenValidator", "SchemaValidator",
+            "CredentialManager", "ContextSanitizer", "OPAPolicyClient",
+            "ServerNameRegistry", "ToolExposureController", "SemanticMappingValidator"
+        ]
+        
+        print(f"\n🛡️ SECURITY CONTROL COVERAGE:")
+        for control in security_controls:
+            control_tests = [test for test in result.successes if control in str(test)]
+            control_passed = len(control_tests)
+            print(f"   ✅ {control}: {control_passed} tests passed")
+        
+        # Zero-trust architecture assessment
+        print(f"\n🎯 ZERO-TRUST ARCHITECTURE ASSESSMENT:")
+        zero_trust_components = ["ServerNameRegistry", "ToolExposureController", "SemanticMappingValidator"]
+        zero_trust_ready = all(
+            any(component in str(test) for test in result.successes)
+            for component in zero_trust_components
+        )
+        
+        if zero_trust_ready:
+            print("   🟢 READY: Zero-trust architecture components are functional")
+        else:
+            print("   🟡 PARTIAL: Some zero-trust components need attention")
+        
+        # Security recommendations
+        print(f"\n💡 SECURITY RECOMMENDATIONS:")
+        if success_rate >= 95:
+            print("   🟢 EXCELLENT: Security controls are working optimally")
+            print("   • Continue monitoring for new threats")
+            print("   • Consider additional edge case testing")
+        elif success_rate >= 85:
+            print("   🟡 GOOD: Security controls are mostly functional")
+            print("   • Review failed tests and improve controls")
+            print("   • Add monitoring for security effectiveness")
+        elif success_rate >= 70:
+            print("   🟠 MODERATE: Several security controls need improvement")
+            print("   • Prioritize fixing critical security controls")
+            print("   • Implement additional security layers")
+        else:
+            print("   🔴 CRITICAL: Immediate security attention required")
+            print("   • Conduct comprehensive security audit")
+            print("   • Implement missing security controls")
+            print("   • Review security architecture design")
+        
+        # Failed tests analysis
+        if failures or errors:
+            print(f"\n❌ FAILED TESTS ANALYSIS:")
+            for test, traceback in result.failures + result.errors:
+                print(f"   • {test}: {traceback.split('AssertionError:')[-1].strip() if 'AssertionError:' in traceback else 'Error occurred'}")
+        
+        print(f"\n🏁 Security test suite completed at: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("🛡️" * 60)
+
+
+class EnhancedTestResult(unittest.TextTestResult):
+    """Enhanced test result handler with security analysis"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.successes = []
+    
+    def addSuccess(self, test):
+        """Track successful tests for analysis"""
+        super().addSuccess(test)
+        self.successes.append(test)
+
+
+def run_individual_test_class(test_class_name):
+    """Run an individual test class by name"""
+    test_classes = {
+        'InputSanitizer': TestInputSanitizer,
+        'TokenValidator': TestGoogleCloudTokenValidator,
+        'SchemaValidator': TestSchemaValidator,
+        'CredentialManager': TestCredentialManager,
+        'ContextSanitizer': TestContextSanitizer,
+        'OPAPolicy': TestOPAPolicyClient,
+        'SecurityException': TestSecurityException,
+        'Integration': TestIntegrationScenarios,
+        'ZeroTrust': TestZeroTrustSecurityArchitecture,
+        'ServerRegistry': TestServerNameRegistry,
+        'ToolController': TestToolExposureController,
+        'SemanticValidator': TestSemanticMappingValidator,
+        'SecurityStatus': TestZeroTrustSecurityStatus
+    }
+    
+    if test_class_name in test_classes:
+        suite = unittest.TestLoader().loadTestsFromTestClass(test_classes[test_class_name])
+        runner = unittest.TextTestRunner(verbosity=2)
+        return runner.run(suite)
+    else:
+        print(f"❌ Test class '{test_class_name}' not found")
+        print(f"Available test classes: {', '.join(test_classes.keys())}")
+        return None
+
+
 if __name__ == "__main__":
-    # Run all tests including zero-trust integration tests
-    unittest.main(verbosity=2)
+    import sys
+    
+    if len(sys.argv) > 1:
+        # Run specific test class if provided
+        test_class = sys.argv[1]
+        print(f"🎯 Running specific test class: {test_class}")
+        run_individual_test_class(test_class)
+    else:
+        # Run comprehensive security test suite with enhanced orchestration
+        orchestrator = SecurityTestOrchestrator()
+        success = orchestrator.run_comprehensive_security_tests()
+        
+        if success:
+            print("\n🎉 ALL SECURITY TESTS PASSED!")
+            sys.exit(0)
+        else:
+            print("\n⚠️ SOME SECURITY TESTS FAILED!")
+            sys.exit(1)

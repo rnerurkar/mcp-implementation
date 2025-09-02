@@ -3,7 +3,6 @@ import os  # For environment variable access
 from typing import Dict, Any, List  # For type hints and better code documentation
 from fastapi import FastAPI, Request, HTTPException  # FastAPI web framework components
 from base_mcp_server import BaseMCPServer  # Our secure MCP server foundation
-
 from fastmcp import FastMCP  # FastMCP library for Model Context Protocol implementation
 
 class MCPServer(BaseMCPServer):
@@ -139,7 +138,7 @@ class MCPServer(BaseMCPServer):
             str: The expected audience value from configuration
         """
         # Return the expected audience for Google Cloud ID token validation
-        return self.config["azure_audience"]
+        return self.config.get("cloud_run_audience", "")
 
     def validate_authorization(self, request_payload: dict):
         """
@@ -164,7 +163,7 @@ class MCPServer(BaseMCPServer):
         # Example: Check for required scope in token claims
         # Scopes define what actions the token holder is authorized to perform
         scopes = request_payload.get("scp", "").split()
-        required_scopes = set(self.config.get("azure_scopes", []))
+        required_scopes = set(self.config.get("required_scopes", []))
         
         # Verify that all required scopes are present in the token
         if not required_scopes.issubset(set(scopes)):
@@ -212,158 +211,81 @@ class MCPServer(BaseMCPServer):
         # For the hello tool, context is just the input parameters
         return {"tool": "hello", "input": raw_data}
 
-    def get_fastapi_app(self):
+    async def _execute_tool_securely(self, tool_name: str, arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Create and configure the FastAPI application
+        Execute tool with security controls and return results in MCP format
         
-        This method sets up the complete FastAPI application including:
-        - MCP (Model Context Protocol) endpoints for agent communication
-        - Health check endpoints for monitoring and Cloud Run
-        - Tool invocation endpoints for direct API access
-        - API documentation and service information
+        This method integrates with the base class streaming functionality
+        to securely execute tools and return properly formatted results.
         
-        The application combines:
-        - FastMCP's HTTP app for MCP protocol compliance
-        - Custom REST endpoints for direct tool access
-        - Security middleware and error handling
-        - Comprehensive health monitoring
-        
+        Args:
+            tool_name (str): Name of the tool to execute
+            arguments (Dict[str, Any]): Tool arguments
+            
         Returns:
-            FastAPI: Configured FastAPI application ready to serve requests
+            List[Dict[str, Any]]: Results in MCP content format
         """
-        # Create the MCP HTTP app with Server-Sent Events transport
-        # This handles the Model Context Protocol for agent communication
-        mcp_app = self.mcp.http_app(path='/mcp', transport="sse")
+        try:
+            # Get tools dictionary from FastMCP
+            tools_dict = await self.mcp.get_tools()
+            
+            if tool_name not in tools_dict:
+                return [{"type": "text", "text": f"Tool '{tool_name}' not found"}]
+            
+            tool = tools_dict[tool_name]
+            
+            # Execute the tool function directly
+            if hasattr(tool, 'fn') and callable(tool.fn):
+                result = tool.fn(**arguments)
+                
+                # Convert result to MCP content format
+                if isinstance(result, str):
+                    return [{"type": "text", "text": result}]
+                elif isinstance(result, dict):
+                    return [{"type": "text", "text": str(result)}]
+                else:
+                    return [{"type": "text", "text": str(result)}]
+            else:
+                return [{"type": "text", "text": f"Tool '{tool_name}' is not callable"}]
+                
+        except Exception as e:
+            # Return error in MCP format
+            return [{"type": "text", "text": f"Error executing tool {tool_name}: {str(e)}"}]
+
+    # === FASTAPI APPLICATION CUSTOMIZATION ===
+    
+    def get_app_title(self) -> str:
+        """Override the FastAPI application title"""
+        return "Greeting MCP Server"
+    
+    def get_app_description(self) -> str:
+        """Override the FastAPI application description"""
+        return "Model Context Protocol Server with greeting tools and secure execution"
+
+    def _add_custom_endpoints(self, app: FastAPI):
+        """Add custom endpoints specific to this MCP server"""
         
-        # Create the main FastAPI application with metadata
-        app = FastAPI(
-            title="MCP Server",
-            description="Model Context Protocol Server with secure tool execution",
-            version="1.0.0",
-            lifespan=mcp_app.lifespan  # Share lifespan management with MCP app
-        )
-        
-        # Mount the MCP app at /mcp-server path
-        # This makes MCP protocol endpoints available to AI agents
-        app.mount("/mcp-server", mcp_app)
-
-        @app.get("/health")
-        async def health_check():
-            """
-            Health check endpoint for Cloud Run and monitoring
-            
-            This endpoint provides comprehensive health status information including:
-            - Service availability and responsiveness
-            - Number of registered tools
-            - Security configuration status
-            - Timestamp for monitoring purposes
-            
-            Used by:
-            - Google Cloud Run for health monitoring
-            - Load balancers for service discovery
-            - Monitoring systems for alerting
-            - DevOps teams for troubleshooting
-            
-            Returns:
-                dict: Health status information
-                
-            Raises:
-                HTTPException: 503 status if health check fails
-            """
-            try:
-                # Basic health check - verify server is responsive
-                tools_count = len(self.mcp._tools) if hasattr(self.mcp, '_tools') else 0
-                return {
-                    "status": "healthy",
-                    "service": "mcp-server",
-                    "version": "1.0.0",
-                    "tools_registered": tools_count,
-                    "security_enabled": bool(self.config.get("azure_audience")),
-                    "timestamp": __import__('datetime').datetime.utcnow().isoformat()
-                }
-            except Exception as e:
-                raise HTTPException(status_code=503, detail=f"Health check failed: {str(e)}")
-
-        @app.get("/mcp-server/health")
-        async def mcp_health_check():
-            """
-            Health check endpoint specifically for MCP server mount point
-            
-            This provides the same health information as /health but is available
-            at the MCP server mount path for consistency and load balancer configuration.
-            
-            Returns:
-                dict: Same health status as main health endpoint
-            """
-            return await health_check()
-
-        @app.post("/invoke")
-        async def invoke_tool(request: Request):
-            """
-            Direct tool invocation endpoint
-            
-            This endpoint allows direct HTTP POST access to MCP tools without
-            using the full MCP protocol. Useful for:
-            - Testing tools during development
-            - Integration with non-MCP systems
-            - Direct API access from web applications
-            - Debugging and troubleshooting
-            
-            The request should contain JSON with tool parameters.
-            
-            Args:
-                request (Request): FastAPI request object containing tool parameters
-                
-            Returns:
-                dict: Tool execution results
-                
-            Raises:
-                HTTPException: 400 for tool errors, 500 for server errors
-            """
-            try:
-                payload = await request.json()
-                response = self.handle_request(payload)
-                if response["status"] == "error":
-                    raise HTTPException(status_code=400, detail=response["message"])
-                return response
-            except HTTPException:
-                raise
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-
-        @app.get("/")
-        async def root():
-            """
-            Root endpoint with service information
-            
-            This endpoint provides an overview of the MCP server including:
-            - Service identification and version
-            - Available API endpoints and their purposes
-            - Service description and capabilities
-            
-            Useful for:
-            - Service discovery
-            - API documentation
-            - Integration guidance
-            - Development and testing
-            
-            Returns:
-                dict: Service information and endpoint directory
-            """
+        @app.get("/tools")
+        async def list_tools():
+            """Custom endpoint to list available tools"""
             return {
-                "service": "MCP Server",
-                "version": "1.0.0",
-                "endpoints": {
-                    "health": "/health",
-                    "mcp_server": "/mcp-server",
-                    "mcp_health": "/mcp-server/health",
-                    "invoke_tool": "/invoke",
-                    "docs": "/docs"
-                },
-                "description": "Model Context Protocol Server with secure tool execution"
+                "tools": [
+                    {
+                        "name": "hello",
+                        "description": "Simple greeting tool",
+                        "parameters": {"name": "string"}
+                    }
+                ]
             }
-
-        return app
+        
+        @app.get("/greeting-stats")
+        async def greeting_stats():
+            """Custom endpoint for greeting-specific statistics"""
+            return {
+                "total_greetings": 0,  # You could implement actual tracking
+                "last_greeting": None,
+                "service": "greeting-mcp-server"
+            }
 
 def create_app():
     """
@@ -380,6 +302,7 @@ def create_app():
     - OPA_URL: Open Policy Agent URL for policy decisions
     - KMS_KEY_PATH: Key Management Service path for encryption
     - SECURITY_LEVEL: Security level (standard, high, etc.)
+    - REQUIRED_SCOPES: Required scopes for tool invocation (comma-separated)
     
     Returns:
         FastAPI: Configured application ready for deployment
@@ -392,6 +315,7 @@ def create_app():
         "opa_url": os.getenv("OPA_URL", "http://localhost:8181"),
         "kms_key_path": os.getenv("KMS_KEY_PATH"),
         "security_level": os.getenv("SECURITY_LEVEL", "standard"),
+        "required_scopes": os.getenv("REQUIRED_SCOPES", "").split(",") if os.getenv("REQUIRED_SCOPES") else [],
     }
     
     # Create the MCP server with security configuration
