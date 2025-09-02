@@ -1,0 +1,38 @@
+# Streamlined requirements for production builds
+# Optimized for faster Docker builds and reduced image size
+
+# Core MCP and Google ADK (essential only)
+google-adk>=1.8.0
+fastmcp==2.5.1
+google-genai>=1.30.0
+
+# FastAPI Web Framework (minimal)
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+pydantic>=2.4.0
+
+# SSE Streaming Support
+sse-starlette>=3.0.0
+
+# HTTP Client Libraries
+httpx>=0.24.0
+
+# Google Cloud Authentication (minimal)
+google-auth>=2.17.0
+google-cloud-secret-manager==2.24.0
+
+# Security and Token Handling
+PyJWT==2.10.1
+cryptography==45.0.5
+
+# Environment and Configuration
+python-dotenv==1.1.0
+
+# JSON Schema Validation
+jsonschema==4.23.0
+
+# Production WSGI Server
+gunicorn>=21.2.0
+
+# Note: This is a minimal requirements file for faster builds
+# The full requirements.txt includes additional development and testing dependencies

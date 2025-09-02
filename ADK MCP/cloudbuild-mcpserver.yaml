@@ -1,0 +1,8 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.mcpserver', '-t', 'gcr.io/$PROJECT_ID/mcp-server', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/mcp-server']
+images:
+- 'gcr.io/$PROJECT_ID/mcp-server'
+timeout: '1200s'

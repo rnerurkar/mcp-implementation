@@ -12,13 +12,16 @@
 google-adk>=1.8.0
 google-cloud-aiplatform[agent-engines]>=1.95.1
 fastmcp==2.5.1
-google-genai==0.8.1
+google-genai>=1.30.0
 
 # FastAPI Web Framework
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
 pydantic>=2.4.0
 python-multipart>=0.0.6
+
+# SSE Streaming Support for Full MCP Protocol
+sse-starlette>=3.0.0
 
 # HTTP Client Libraries
 httpx>=0.24.0
@@ -52,7 +55,7 @@ gunicorn>=21.2.0
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
 pytest-httpx>=0.21.0
-pytest-requests-mock>=1.12.0
+pytest-mock>=3.6.0
 
 # Additional Zero-Trust Security Dependencies
 # URL validation for security controls

@@ -1,0 +1,85 @@
+# Docker ignore file for optimized builds
+# Exclude development and cache files
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+mcp_env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Documentation and markdown files (keep only essential ones)
+*.md
+!README.md
+
+# Test files
+*test*
+*Test*
+pytest_cache/
+.pytest_cache/
+
+# Deployment files (exclude when building containers)
+deploy_*.ps1
+deploy_*.sh
+cloudbuild-*.yaml
+cloudrun-*.yaml
+setup_*.py
+
+# Environment files (use environment variables instead)
+.env
+.env.*
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.log
+
+# Large data files
+*.csv
+*.xlsx
+*.npy
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Docker files for other services
+Dockerfile.*
+!Dockerfile.agentservice
+!Dockerfile.mcpserver

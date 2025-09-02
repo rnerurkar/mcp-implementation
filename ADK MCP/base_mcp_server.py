@@ -25,10 +25,14 @@ pipeline, and subclasses implement the specific tool functionality.
 
 # Core Python libraries for abstract base classes and type hints
 from abc import ABC, abstractmethod  # For defining abstract base classes and methods
-from typing import Any, Dict, List    # For type hints and better code documentation
+from typing import Any, Dict, List, AsyncGenerator    # For type hints and better code documentation
+import json
+import asyncio
 
-# FastAPI for HTTP exception handling
-from fastapi import HTTPException     # For proper HTTP error responses
+# FastAPI for HTTP exception handling and application creation
+from fastapi import FastAPI, HTTPException, Request     # For proper HTTP error responses and app creation
+from fastapi.responses import StreamingResponse
+from sse_starlette import EventSourceResponse
 
 # Import all security control components
 # These provide comprehensive protection against various attack vectors
@@ -213,11 +217,27 @@ class BaseMCPServer(ABC):
             
             # CONTROL 2: SCHEMA VALIDATION (Structure validation)  
             # Validate parameter structure early to avoid heavy processing on invalid requests
-            input_validator = SchemaValidator(
-                schema=self._load_tool_schema(request.get("tool_name", "hello")),
-                security_rules=self._load_security_rules()
-            )
-            validated_params = input_validator.validate(sanitized_params)
+            tool_name = request.get("tool_name", "hello")
+            
+            # Simple validation for direct tool invocation (non-JSON-RPC)
+            if "jsonrpc" not in request:
+                # Direct tool invocation - validate parameters against tool schema
+                tool_schema = self._load_tool_schema(tool_name)
+                if tool_schema and sanitized_params:
+                    # Basic schema validation for direct invocation
+                    validated_params = self._validate_tool_parameters(sanitized_params, tool_schema)
+                else:
+                    validated_params = sanitized_params
+            else:
+                # JSON-RPC message - use full JSON-RPC validation
+                tool_schema = self._load_tool_schema(tool_name)
+                mcp_methods = {tool_name: tool_schema} if tool_schema else {}
+                
+                input_validator = SchemaValidator(
+                    mcp_methods=mcp_methods,
+                    security_rules=self._load_security_rules()
+                )
+                validated_params = input_validator.validate(request)
 
             # ========================================================================
             # PHASE 2: AUTHENTICATION & AUTHORIZATION
@@ -739,3 +759,377 @@ class BaseMCPServer(ABC):
             return "context_processing"
         else:
             return "unknown"
+
+    # === FASTAPI APPLICATION METHODS ===
+    
+    def get_fastapi_app(self):
+        """
+        Create and configure the FastAPI application (Base implementation)
+        
+        This method provides a standard FastAPI application structure that includes:
+        - MCP (Model Context Protocol) endpoints for agent communication
+        - Health check endpoints for monitoring and Cloud Run
+        - Tool invocation endpoints for direct API access
+        - API documentation and service information
+        
+        Concrete subclasses can override this method to add custom endpoints
+        or modify the application configuration.
+        
+        Returns:
+            FastAPI: Configured FastAPI application ready to serve requests
+        """
+        # Ensure the subclass has implemented the mcp attribute
+        if not hasattr(self, 'mcp'):
+            raise NotImplementedError("Subclass must initialize self.mcp (FastMCP instance) in __init__")
+        
+        # Create the MCP HTTP app with Server-Sent Events transport
+        mcp_app = self.mcp.http_app(path='/mcp', transport="sse")
+        
+        # Create the main FastAPI application with metadata
+        app = FastAPI(
+            title=self.get_app_title(),
+            description=self.get_app_description(),
+            version=self.get_app_version(),
+            lifespan=mcp_app.lifespan
+        )
+        
+        # Mount the MCP app at /mcp-server path
+        app.mount("/mcp-server", mcp_app)
+
+        # Add standard endpoints
+        self._add_health_endpoints(app)
+        self._add_tool_endpoints(app)
+        self._add_mcp_endpoints(app)  # Add MCP streaming endpoints
+        self._add_info_endpoints(app)
+        
+        # Allow subclasses to add custom endpoints
+        self._add_custom_endpoints(app)
+        
+        return app
+
+    def get_app_title(self) -> str:
+        """Get the FastAPI application title (can be overridden by subclasses)"""
+        return "MCP Server"
+
+    def get_app_description(self) -> str:
+        """Get the FastAPI application description (can be overridden by subclasses)"""
+        return "Model Context Protocol Server with secure tool execution"
+
+    def get_app_version(self) -> str:
+        """Get the FastAPI application version (can be overridden by subclasses)"""
+        return "1.0.0"
+
+    def _add_health_endpoints(self, app: FastAPI):
+        """Add health check endpoints to the FastAPI application"""
+        @app.get("/health")
+        async def health_check():
+            try:
+                tools_count = len(self.mcp._tools) if hasattr(self.mcp, '_tools') else 0
+                return {
+                    "status": "healthy",
+                    "service": self.get_app_title().lower().replace(" ", "-"),
+                    "version": self.get_app_version(),
+                    "tools_registered": tools_count,
+                    "security_enabled": bool(self.config.get("cloud_run_audience")),
+                    "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+                }
+            except Exception as e:
+                raise HTTPException(status_code=503, detail=f"Health check failed: {str(e)}")
+
+        @app.get("/mcp-server/health")
+        async def mcp_health_check():
+            return await health_check()
+
+    def _add_tool_endpoints(self, app: FastAPI):
+        """Add tool invocation endpoints to the FastAPI application"""
+        @app.post("/invoke")
+        async def invoke_tool(request: Request):
+            try:
+                payload = await request.json()
+                response = self.handle_request(payload)
+                if response["status"] == "error":
+                    raise HTTPException(status_code=400, detail=response["message"])
+                return response
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+    def _add_info_endpoints(self, app: FastAPI):
+        """Add information endpoints to the FastAPI application"""
+        @app.get("/")
+        async def root():
+            return {
+                "service": self.get_app_title(),
+                "version": self.get_app_version(),
+                "protocol": "MCP with HTTP streaming and JSON-RPC",
+                "capabilities": {
+                    "streaming": True,
+                    "json_rpc": True,
+                    "tools": True,
+                    "sse": True
+                },
+                "endpoints": {
+                    "health": "/health",
+                    "mcp_server": "/mcp-server",
+                    "mcp_health": "/mcp-server/health",
+                    "mcp_stream": "/mcp/stream",
+                    "mcp_tools": "/mcp/tools", 
+                    "mcp_call": "/mcp/call",
+                    "invoke_tool": "/invoke",
+                    "docs": "/docs"
+                },
+                "description": self.get_app_description()
+            }
+
+    def _add_mcp_endpoints(self, app: FastAPI):
+        """Add MCP streaming endpoints to the FastAPI application"""
+        
+        @app.get("/mcp/tools")
+        async def get_mcp_tools():
+            """Get available tools in MCP format"""
+            try:
+                tools = await self._get_tools_list()
+                return {"tools": tools}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to get tools: {str(e)}")
+        
+        @app.post("/mcp/call")
+        async def call_mcp_tool(request: Request):
+            """Call tool via MCP protocol (REST endpoint)"""
+            try:
+                body = await request.json()
+                tool_name = body.get("name")
+                arguments = body.get("arguments", {})
+                
+                if not tool_name:
+                    raise HTTPException(status_code=400, detail="Tool name required")
+                
+                # Apply security controls
+                await self._apply_security_controls(request, {"tool": tool_name, "args": arguments})
+                
+                # Execute tool
+                result = await self._execute_tool_securely(tool_name, arguments)
+                return result
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @app.post("/mcp/stream")
+        async def stream_mcp_tool(request: Request):
+            """Stream tool execution via MCP protocol with JSON-RPC and SSE"""
+            try:
+                body = await request.json()
+                
+                # Validate JSON-RPC format
+                if body.get("jsonrpc") != "2.0":
+                    raise HTTPException(status_code=400, detail="Invalid JSON-RPC version")
+                
+                method = body.get("method")
+                params = body.get("params", {})
+                request_id = body.get("id")
+                
+                # Apply security controls
+                await self._apply_security_controls(request, {"method": method, "params": params})
+                
+                # Generate streaming response
+                return EventSourceResponse(
+                    self._stream_tool_execution(method, params, request_id),
+                    media_type="text/event-stream"
+                )
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+    async def _stream_tool_execution(self, method: str, params: Dict[str, Any], request_id: str) -> AsyncGenerator[str, None]:
+        """Stream tool execution with progress updates"""
+        try:
+            # Validate request format
+            if not method or not request_id:
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params: method and id required"
+                    },
+                    "id": request_id
+                }
+                yield f"data: {json.dumps(error_response)}\n\n"
+                return
+            
+            # Handle different MCP methods
+            if method == "tools/list":
+                tools = await self._get_tools_list()
+                response = {
+                    "jsonrpc": "2.0",
+                    "result": {"tools": tools},
+                    "id": request_id
+                }
+                yield f"data: {json.dumps(response)}\n\n"
+                
+            elif method == "tools/call":
+                tool_name = params.get("name")
+                arguments = params.get("arguments", {})
+                
+                if not tool_name:
+                    error_response = {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32602,
+                            "message": "Invalid params: tool name required"
+                        },
+                        "id": request_id
+                    }
+                    yield f"data: {json.dumps(error_response)}\n\n"
+                    return
+                
+                # Stream progress update
+                progress_update = {
+                    "jsonrpc": "2.0",
+                    "method": "notifications/progress",
+                    "params": {
+                        "progressToken": f"tool_call_{request_id}",
+                        "value": 0.5,
+                        "message": f"Calling tool: {tool_name}"
+                    }
+                }
+                yield f"data: {json.dumps(progress_update)}\n\n"
+                
+                # Execute the tool
+                result = await self._execute_tool_securely(tool_name, arguments)
+                
+                # Final result
+                response = {
+                    "jsonrpc": "2.0",
+                    "result": {"content": result},
+                    "id": request_id
+                }
+                yield f"data: {json.dumps(response)}\n\n"
+                
+            else:
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32601,
+                        "message": f"Method not found: {method}"
+                    },
+                    "id": request_id
+                }
+                yield f"data: {json.dumps(error_response)}\n\n"
+                
+        except Exception as e:
+            error_response = {
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32603,
+                    "message": f"Internal error: {str(e)}"
+                },
+                "id": request_id
+            }
+            yield f"data: {json.dumps(error_response)}\n\n"
+
+    async def _get_tools_list(self) -> List[Dict[str, Any]]:
+        """Get list of available tools"""
+        if hasattr(self.mcp, '_tools'):
+            return [{"name": name, "description": tool.description} 
+                   for name, tool in self.mcp._tools.items()]
+        return []
+
+    async def _execute_tool_securely(self, tool_name: str, arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Execute tool with security controls and return results"""
+        # This will be implemented by subclasses
+        # For now, return a basic structure
+        return [{"type": "text", "text": f"Tool {tool_name} executed with args: {arguments}"}]
+
+    def _add_custom_endpoints(self, app: FastAPI):
+        """
+        Add custom endpoints (to be overridden by subclasses)
+        
+        Subclasses can override this method to add their own custom endpoints
+        without having to reimplement the entire get_fastapi_app() method.
+        
+        Args:
+            app (FastAPI): The FastAPI application to add endpoints to
+        """
+        # Default implementation does nothing
+        # Subclasses can override to add custom endpoints
+        pass
+    
+    def _load_tool_schema(self, tool_name: str) -> dict:
+        """Load schema for a specific tool."""
+        # Default tool schemas - override in subclass for custom tools
+        schemas = {
+            "hello": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "default": "World"}
+                },
+                "required": []
+            }
+        }
+        return schemas.get(tool_name, {})
+    
+    def _validate_tool_parameters(self, parameters: dict, schema: dict) -> dict:
+        """Simple parameter validation for direct tool invocation."""
+        # Basic validation - ensure required fields are present
+        required = schema.get("required", [])
+        for field in required:
+            if field not in parameters:
+                raise ValueError(f"Missing required parameter: {field}")
+        
+        # Apply defaults for missing optional parameters
+        properties = schema.get("properties", {})
+        validated = parameters.copy()
+        for param, config in properties.items():
+            if param not in validated and "default" in config:
+                validated[param] = config["default"]
+        
+        return validated
+
+    async def _apply_security_controls(self, request: Any, context: Dict[str, Any]) -> None:
+        """
+        Apply security controls (basic implementation)
+        
+        This is a basic implementation that can be overridden by subclasses
+        to implement comprehensive security controls.
+        
+        Args:
+            request: The HTTP request object
+            context: Context information about the operation
+        """
+        # Basic implementation - just log the request
+        # Subclasses can override this method to implement:
+        # - Authentication/authorization
+        # - Input validation and sanitization
+        # - Rate limiting
+        # - Policy enforcement
+        pass
+
+    async def _get_tools_list(self) -> List[Dict[str, Any]]:
+        """
+        Get list of available tools in MCP format
+        
+        Returns:
+            List of tool definitions for MCP protocol
+        """
+        if not hasattr(self, 'mcp'):
+            return []
+        
+        # Get tools from FastMCP instance
+        try:
+            # Use the correct FastMCP async method to get tools
+            tools_dict = await self.mcp.get_tools()
+            tools = []
+            
+            for tool_name, tool_obj in tools_dict.items():
+                # Extract tool information from FastMCP tool object
+                tools.append({
+                    "name": tool_name,
+                    "description": tool_obj.description or f"Tool: {tool_name}",
+                    "input_schema": self._load_tool_schema(tool_name)
+                })
+            return tools
+        except Exception as e:
+            print(f"⚠️ Error getting tools list: {e}")
+            # Return empty list if there's an issue
+            return []
