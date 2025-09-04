@@ -2,7 +2,133 @@
 
 ## 📋 Overview
 
-This document details the comprehensive end-to-end workflow of a user interacting with **GitHub Copilot's Agent Mode** to execute tasks against **Rally** through a custom **MCP (Model Context Protocol)** server, including **OAuth 2.1 authentication with PKCE**.
+This document details the comprehensive end-to-end workflow of a user interacting with **GitHub Copilot's Agent Mode** to execute tasks against **Rally** through a custom **MCP (Model Context Protocol)** server, including **OAuth 2.1 authentic## 🔒 Security Controls Implementation
+
+Since **GitHub Copilot Agent** and the underlying **LLM** are out-of-the-box services without access for custom security implementation, **ALL 9 security controls must be implemented on the MCP Server** to ensure comprehensive protection.
+
+### 🎯 Required MCP Server Security Controls (9/9)
+
+| **Security Control** | **MCP Server Implementation** | **Rationale** | **Protection Against** |
+|---------------------|-------------------------------|---------------|------------------------|
+| **1. Input Sanitization** | ✅ **CRITICAL** - Validate all incoming requests from Copilot Agent | Cannot implement on Copilot Agent (no access) | Prompt injection, XSS, SQL injection attacks |
+| **2. Token Validation** | ✅ **CRITICAL** - Validate OAuth tokens and session IDs | Must be server-side for security | Unauthorized access, token tampering |
+| **3. Schema Validation** | ✅ **CRITICAL** - Validate JSON-RPC 2.0 message format | MCP Server must enforce protocol compliance | Protocol violations, malformed requests |
+| **4. Credential Management** | ✅ **CRITICAL** - Secure storage of OAuth tokens and secrets | Centralized secure storage required | Secret exposure, credential theft |
+| **5. Context Sanitization** | ✅ **CRITICAL** - Sanitize responses before sending to Agent | Cannot implement on Copilot Agent (no access) | Context poisoning, PII leakage |
+| **6. Prompt Injection Protection** | ✅ **CRITICAL** - Filter malicious prompts from Agent requests | Cannot implement on LLM (no access) | AI behavior manipulation |
+| **7. Context Size Validation** | ✅ **CRITICAL** - Limit request/response sizes | Prevent resource exhaustion on server | DoS attacks, resource exhaustion |
+| **8. Response Sanitization** | ✅ **CRITICAL** - Remove PII and sensitive data from responses | Final checkpoint before Agent delivery | Information leakage, PII exposure |
+| **9. Model Armor Integration** | ✅ **CRITICAL** - Real-time AI threat detection | Cannot implement on out-of-box LLM | Advanced AI threats, model attacks |
+
+### 🛡️ Security Control Distribution - Out-of-Box Scenario
+
+```mermaid
+graph TB
+    subgraph "OUT-OF-BOX COMPONENTS (No Custom Security Access)"
+        CA[GitHub Copilot Agent<br/>❌ No Security Implementation Access<br/>🔒 Microsoft Managed]
+        LLM[Underlying LLM<br/>❌ No Security Implementation Access<br/>🔒 OpenAI/Microsoft Managed]
+    end
+    
+    subgraph "CUSTOM MCP SERVER (All Security Controls Required)"
+        MCP[MCP Server on GCP<br/>✅ ALL 9 Security Controls<br/>🛡️ Complete Protection Stack]
+        
+        SC1[1. Input Sanitization<br/>🔍 Request Validation]
+        SC2[2. Token Validation<br/>🔐 OAuth Security]
+        SC3[3. Schema Validation<br/>📋 Protocol Compliance]
+        SC4[4. Credential Management<br/>🗄️ Secure Storage]
+        SC5[5. Context Sanitization<br/>🧹 Response Cleaning]
+        SC6[6. Prompt Injection Protection<br/>🚫 Malicious Prompt Filtering]
+        SC7[7. Context Size Validation<br/>📏 Resource Protection]
+        SC8[8. Response Sanitization<br/>🧼 PII Removal]
+        SC9[9. Model Armor Integration<br/>🛡️ AI Threat Detection]
+    end
+    
+    subgraph "BUSINESS SYSTEMS"
+        API[Rally API<br/>🏢 Enterprise Systems<br/>📊 Business Data]
+    end
+    
+    CA -->|Unsecured Requests| MCP
+    LLM -->|AI Processing| CA
+    
+    MCP --> SC1
+    MCP --> SC2
+    MCP --> SC3
+    MCP --> SC4
+    MCP --> SC5
+    MCP --> SC6
+    MCP --> SC7
+    MCP --> SC8
+    MCP --> SC9
+    
+    MCP -->|Secured API Calls| API
+    
+    style CA fill:#ffebee,stroke:#d32f2f,stroke-width:3px
+    style LLM fill:#ffebee,stroke:#d32f2f,stroke-width:3px
+    style MCP fill:#e8f5e8,stroke:#2e7d32,stroke-width:4px
+    style API fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+```
+
+### 🔐 Detailed Security Implementation Requirements
+
+#### **Input Layer Security (Controls 1, 6, 7)**
+```http
+POST /tools/create_rally_story
+Headers: Session-ID: <session_id>
+Content: <user_query>
+
+MCP Server Processing:
+1. Input Sanitization: Validate and sanitize user_query
+2. Prompt Injection Protection: Scan for malicious prompts
+3. Context Size Validation: Enforce size limits
+```
+
+#### **Protocol Layer Security (Controls 2, 3, 4)**
+```json
+{
+  "tokenValidation": "Verify OAuth tokens and session integrity",
+  "schemaValidation": "Enforce JSON-RPC 2.0 compliance",
+  "credentialManagement": "Secure OAuth token storage and rotation"
+}
+```
+
+#### **Output Layer Security (Controls 5, 8, 9)**
+```http
+Response Processing:
+1. Context Sanitization: Remove context poisoning attempts
+2. Response Sanitization: Strip PII and sensitive data
+3. Model Armor Integration: Real-time threat detection
+```
+
+### ⚠️ Security Architecture Constraints
+
+| **Component** | **Security Capability** | **Implementation Location** |
+|---------------|------------------------|----------------------------|
+| **GitHub Copilot Agent** | ❌ No custom security access | Microsoft managed service |
+| **Underlying LLM** | ❌ No custom security access | OpenAI/Microsoft managed |
+| **MCP Server** | ✅ Full security control | **ALL 9 controls required** |
+| **Business APIs** | ⚡ Existing enterprise security | Protected by MCP Server |
+
+### 🎯 Critical Security Recommendations
+
+1. **Comprehensive Server-Side Security**: Implement all 9 controls on MCP Server since Agent/LLM are inaccessible
+2. **Defense in Depth**: Multiple security layers on MCP Server to compensate for lack of client-side controls
+3. **Real-Time Monitoring**: Enhanced logging and monitoring since no visibility into Agent/LLM processing
+4. **Input Validation**: Extra stringent validation since cannot control Agent input processing
+5. **Output Sanitization**: Comprehensive response cleaning since no control over Agent output handling
+
+### 🔒 Security Considerations Summary
+
+| Security Measure | Implementation |
+|------------------|----------------|
+| 🔐 **Token Storage** | Tokens stored securely on MCP server, not on client |
+| 🛡️ **Context Sanitization** | Performed on MCP server before sending responses to Agent |
+| ✅ **Input Validation** | Comprehensive sanitization implemented on MCP server |
+| 🎯 **Authorization Checks** | Fine-grained checks performed against Rally APIs |
+| 🔒 **PKCE Protection** | Prevents authorization code interception attacks |
+| 🎲 **State Parameter** | CSRF protection linking authentication to specific requests |
+| 🚫 **Prompt Injection Defense** | Server-side filtering of malicious prompts |
+| 📏 **Resource Protection** | Context size limits and DoS prevention |
+| 🛡️ **AI Threat Detection** | Model Armor integration for advanced threats | PKCE**.
 
 ---
 
