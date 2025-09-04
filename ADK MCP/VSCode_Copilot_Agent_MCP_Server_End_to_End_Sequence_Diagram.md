@@ -2,25 +2,27 @@
 
 ## 📋 Overview
 
-This document details the comprehensive end-to-end workflow of a user interacting with **GitHub Copilot's Agent Mode** to execute tasks against **Rally** through a custom **MCP (Model Context Protocol)** server, including **OAuth 2.1 authentic## 🔒 Security Controls Implementation
+This document details the comprehensive end-to-end workflow of a user interacting with **GitHub Copilot's Agent Mode** to execute tasks against **Rally** through a custom **MCP (Model Context Protocol)** server, including **OAuth 2.1 authentic## 🔒 Security Controls Implementation Analysis
 
-Since **GitHub Copilot Agent** and the underlying **LLM** are out-of-the-box services without access for custom security implementation, **ALL 9 security controls must be implemented on the MCP Server** to ensure comprehensive protection.
+Since **GitHub Copilot Agent** and the underlying **LLM** are out-of-the-box services without access for custom security implementation, we must analyze which of the **9 MCP Framework Security Controls** from [SECURITY_CONTROLS_OVERVIEW.md](./SECURITY_CONTROLS_OVERVIEW.md) can be effectively implemented on the MCP Server.
 
-### 🎯 Required MCP Server Security Controls (9/9)
+### 🎯 MCP Framework Security Controls Analysis for Out-of-Box Scenario
 
-| **Security Control** | **MCP Server Implementation** | **Rationale** | **Protection Against** |
-|---------------------|-------------------------------|---------------|------------------------|
-| **1. Input Sanitization** | ✅ **CRITICAL** - Validate all incoming requests from Copilot Agent | Cannot implement on Copilot Agent (no access) | Prompt injection, XSS, SQL injection attacks |
-| **2. Token Validation** | ✅ **CRITICAL** - Validate OAuth tokens and session IDs | Must be server-side for security | Unauthorized access, token tampering |
-| **3. Schema Validation** | ✅ **CRITICAL** - Validate JSON-RPC 2.0 message format | MCP Server must enforce protocol compliance | Protocol violations, malformed requests |
-| **4. Credential Management** | ✅ **CRITICAL** - Secure storage of OAuth tokens and secrets | Centralized secure storage required | Secret exposure, credential theft |
-| **5. Context Sanitization** | ✅ **CRITICAL** - Sanitize responses before sending to Agent | Cannot implement on Copilot Agent (no access) | Context poisoning, PII leakage |
-| **6. Prompt Injection Protection** | ✅ **CRITICAL** - Filter malicious prompts from Agent requests | Cannot implement on LLM (no access) | AI behavior manipulation |
-| **7. Context Size Validation** | ✅ **CRITICAL** - Limit request/response sizes | Prevent resource exhaustion on server | DoS attacks, resource exhaustion |
-| **8. Response Sanitization** | ✅ **CRITICAL** - Remove PII and sensitive data from responses | Final checkpoint before Agent delivery | Information leakage, PII exposure |
-| **9. Model Armor Integration** | ✅ **CRITICAL** - Real-time AI threat detection | Cannot implement on out-of-box LLM | Advanced AI threats, model attacks |
+Based on the authoritative 9 security controls documented in the MCP Framework, here's the implementation analysis:
 
-### 🛡️ Security Control Distribution - Out-of-Box Scenario
+| **Security Control** | **Implementation** | **Effectiveness** | **Rationale** |
+|---------------------|-------------------|------------------|---------------|
+| **1. InputSanitizer** | ✅ **MANDATORY** | 🟢 HIGH | Agent cannot sanitize; server must block prompt injection, SQL injection, XSS, command injection |
+| **2. GoogleCloudTokenValidator** | ✅ **MANDATORY** | 🟢 HIGH | Agent provides OAuth 2.1 token; server validates via Cloud Run headers (`X-Goog-Authenticated-User-Email`) |
+| **3. SchemaValidator** | ✅ **MANDATORY** | 🟢 HIGH | Agent sends JSON-RPC 2.0; server enforces protocol compliance and security rules |
+| **4. CredentialManager** | ✅ **MANDATORY** | 🟢 HIGH | Agent cannot access secrets; server handles Google Cloud Secret Manager and credential injection |
+| **5. ContextSanitizer** | ✅ **MANDATORY** | 🟢 HIGH | LLM cannot sanitize responses; server prevents PII leakage and context poisoning (Model Armor + regex) |
+| **6. ToolExposureController** | ✅ **MANDATORY** | 🟢 HIGH | Agent cannot control access; server manages tool policies and approval workflows |
+| **7. ServerNameRegistry** | 🔶 **OPTIONAL** | 🟡 MEDIUM | Useful for multi-server environments; limited value in single MCP Server deployments |
+| **8. SemanticMappingValidator** | 🔶 **OPTIONAL** | 🟡 MEDIUM | Validates tool metadata consistency; less critical for static tool sets |
+| **9. OPAPolicyClient** | ❌ **SKIP** | 🔴 LOW | Requires rich context unavailable in out-of-box scenario; use ToolExposureController instead |
+
+### 🛡️ Security Architecture for Out-of-Box IDE Integration
 
 ```mermaid
 graph TB
@@ -29,18 +31,26 @@ graph TB
         LLM[Underlying LLM<br/>❌ No Security Implementation Access<br/>🔒 OpenAI/Microsoft Managed]
     end
     
-    subgraph "CUSTOM MCP SERVER (All Security Controls Required)"
-        MCP[MCP Server on GCP<br/>✅ ALL 9 Security Controls<br/>🛡️ Complete Protection Stack]
+    subgraph "CUSTOM MCP SERVER (6 Mandatory + 2 Optional Controls)"
+        MCP[MCP Server on GCP<br/>✅ 6 MANDATORY Security Controls<br/>� 2 OPTIONAL Controls<br/>❌ 1 SKIPPED Control]
         
-        SC1[1. Input Sanitization<br/>🔍 Request Validation]
-        SC2[2. Token Validation<br/>🔐 OAuth Security]
-        SC3[3. Schema Validation<br/>📋 Protocol Compliance]
-        SC4[4. Credential Management<br/>🗄️ Secure Storage]
-        SC5[5. Context Sanitization<br/>🧹 Response Cleaning]
-        SC6[6. Prompt Injection Protection<br/>🚫 Malicious Prompt Filtering]
-        SC7[7. Context Size Validation<br/>📏 Resource Protection]
-        SC8[8. Response Sanitization<br/>🧼 PII Removal]
-        SC9[9. Model Armor Integration<br/>🛡️ AI Threat Detection]
+        subgraph "MANDATORY CONTROLS"
+            SC1[1. InputSanitizer<br/>🔍 Prompt Injection Protection]
+            SC2[2. GoogleCloudTokenValidator<br/>🔐 OAuth 2.1 Validation]
+            SC3[3. SchemaValidator<br/>📋 JSON-RPC 2.0 Compliance]
+            SC4[4. CredentialManager<br/>🗄️ Google Cloud Secret Manager]
+            SC5[5. ContextSanitizer<br/>🧹 PII Protection + Model Armor]
+            SC6[6. ToolExposureController<br/>� Access Control Policies]
+        end
+        
+        subgraph "OPTIONAL CONTROLS"
+            SC7[7. ServerNameRegistry<br/>🏷️ Identity Verification]
+            SC8[8. SemanticMappingValidator<br/>🔍 Tool Metadata Validation]
+        end
+        
+        subgraph "SKIPPED CONTROL"
+            SC9[9. OPAPolicyClient<br/>❌ SKIP - Use ToolExposureController<br/>⚠️ Limited context in out-of-box scenario]
+        end
     end
     
     subgraph "BUSINESS SYSTEMS"
@@ -56,79 +66,191 @@ graph TB
     MCP --> SC4
     MCP --> SC5
     MCP --> SC6
-    MCP --> SC7
-    MCP --> SC8
-    MCP --> SC9
+    MCP -.-> SC7
+    MCP -.-> SC8
     
     MCP -->|Secured API Calls| API
     
     style CA fill:#ffebee,stroke:#d32f2f,stroke-width:3px
     style LLM fill:#ffebee,stroke:#d32f2f,stroke-width:3px
     style MCP fill:#e8f5e8,stroke:#2e7d32,stroke-width:4px
+    style SC1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style SC2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style SC3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style SC4 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style SC5 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style SC6 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style SC7 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,stroke-dasharray: 5 5
+    style SC8 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,stroke-dasharray: 5 5
+    style SC9 fill:#ffebee,stroke:#d32f2f,stroke-width:2px,stroke-dasharray: 10 5
     style API fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
 ```
 
-### 🔐 Detailed Security Implementation Requirements
+### 🔐 Security Implementation Mapping for Out-of-Box Scenario
 
-#### **Input Layer Security (Controls 1, 6, 7)**
+#### **Phase 1: Critical Security Foundation (6 Mandatory Controls)**
+
+##### **1. InputSanitizer - Request Validation**
 ```http
 POST /tools/create_rally_story
-Headers: Session-ID: <session_id>
+Headers: Authorization: Bearer <oauth_token>
 Content: <user_query>
 
 MCP Server Processing:
-1. Input Sanitization: Validate and sanitize user_query
-2. Prompt Injection Protection: Scan for malicious prompts
-3. Context Size Validation: Enforce size limits
+✅ InputSanitizer.sanitize_string(user_query)
+- Detect prompt injection patterns
+- Filter SQL injection attempts  
+- Block XSS and command injection
+- Apply HTML escaping and content filtering
 ```
 
-#### **Protocol Layer Security (Controls 2, 3, 4)**
+##### **2. GoogleCloudTokenValidator - OAuth Authentication**
 ```json
 {
-  "tokenValidation": "Verify OAuth tokens and session integrity",
-  "schemaValidation": "Enforce JSON-RPC 2.0 compliance",
-  "credentialManagement": "Secure OAuth token storage and rotation"
+  "cloudRunHeaders": {
+    "X-Goog-Authenticated-User-Email": "service-account@project.iam.gserviceaccount.com",
+    "X-Goog-Authenticated-User-ID": "user-id"
+  },
+  "validation": "Automatic Cloud Run token validation",
+  "fallback": "JWT validation with google.auth library"
 }
 ```
 
-#### **Output Layer Security (Controls 5, 8, 9)**
-```http
-Response Processing:
-1. Context Sanitization: Remove context poisoning attempts
-2. Response Sanitization: Strip PII and sensitive data
-3. Model Armor Integration: Real-time threat detection
+##### **3. SchemaValidator - Protocol Compliance**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/list",
+  "params": {},
+  "id": 1,
+  "validation": "JSON-RPC 2.0 structure + MCP security rules"
+}
 ```
 
-### ⚠️ Security Architecture Constraints
+##### **4. CredentialManager - Secret Management**
+```python
+# Secure credential injection from Google Cloud Secret Manager
+credentials = {
+    "rally_api_key": secret_manager.get_secret("rally-api-key"),
+    "oauth_client_secret": secret_manager.get_secret("oauth-client-secret")
+}
+```
 
-| **Component** | **Security Capability** | **Implementation Location** |
+##### **5. ContextSanitizer - Response Protection**
+```python
+# Model Armor integration with regex fallback
+sanitized_response = context_sanitizer.sanitize({
+    "model_armor_api": "Advanced threat detection",
+    "regex_fallback": "PII pattern matching",
+    "pii_redaction": "[EMAIL-REDACTED], [SSN-REDACTED]"
+})
+```
+
+##### **6. ToolExposureController - Access Control**
+```json
+{
+  "policy": {
+    "service_accounts": {
+      "copilot@project.iam.gserviceaccount.com": {
+        "allowed_tools": ["hello", "create_rally_story", "get_rally_data"],
+        "approval_required": false
+      }
+    }
+  }
+}
+```
+
+#### **Phase 2: Optional Controls (2 Controls)**
+
+##### **7. ServerNameRegistry - Identity Verification**
+```python
+# Server identity management (useful for multi-server setups)
+server_registry.register_server(
+    server_id="rally-mcp-server",
+    namespace="enterprise",
+    tools=["rally_create", "rally_read", "rally_update"]
+)
+```
+
+##### **8. SemanticMappingValidator - Tool Metadata Validation**
+```python
+# Tool metadata consistency validation
+semantic_validator.validate_tool_semantics(
+    tool_name="create_rally_story",
+    parameters={"title": "string", "description": "string"},
+    metadata={"category": "data_access", "output_type": "json"}
+)
+```
+
+#### **Phase 3: Skipped Control (1 Control)**
+
+##### **9. OPAPolicyClient - Policy Engine**
+```python
+# ❌ SKIP: Limited effectiveness in out-of-box scenario
+# Reason: Agent provides minimal context (only service account from OAuth)
+# Cannot build rich policy context for dynamic authorization
+# Alternative: Use ToolExposureController with static service account policies
+```
+
+### ⚠️ Security Architecture Constraints Analysis
+
+| **Component** | **Security Capability** | **Implementation Strategy** |
 |---------------|------------------------|----------------------------|
-| **GitHub Copilot Agent** | ❌ No custom security access | Microsoft managed service |
-| **Underlying LLM** | ❌ No custom security access | OpenAI/Microsoft managed |
-| **MCP Server** | ✅ Full security control | **ALL 9 controls required** |
-| **Business APIs** | ⚡ Existing enterprise security | Protected by MCP Server |
+| **GitHub Copilot Agent** | ❌ No custom security access | Microsoft managed - cannot modify |
+| **Underlying LLM** | ❌ No custom security access | OpenAI/Microsoft managed - cannot modify |
+| **MCP Server** | ✅ Full security control | **6 mandatory + 2 optional controls** |
+| **Business APIs** | ⚡ Existing enterprise security | Protected by MCP Server security gateway |
 
-### 🎯 Critical Security Recommendations
+### 🎯 Critical Security Recommendations for Out-of-Box Integration
 
-1. **Comprehensive Server-Side Security**: Implement all 9 controls on MCP Server since Agent/LLM are inaccessible
-2. **Defense in Depth**: Multiple security layers on MCP Server to compensate for lack of client-side controls
-3. **Real-Time Monitoring**: Enhanced logging and monitoring since no visibility into Agent/LLM processing
-4. **Input Validation**: Extra stringent validation since cannot control Agent input processing
-5. **Output Sanitization**: Comprehensive response cleaning since no control over Agent output handling
+1. **Mandatory Controls First**: Implement 6 critical controls before deployment
+2. **Server-Side Defense**: All security must be on MCP Server due to Agent/LLM constraints  
+3. **OAuth 2.1 Reliance**: Leverage Google Cloud Run automatic token validation
+4. **Response Sanitization**: Extra important since no control over Agent response handling
+5. **Static Policy Management**: Use service account-based policies instead of dynamic OPA rules
 
-### 🔒 Security Considerations Summary
+### 🔒 Security Implementation Priority
 
-| Security Measure | Implementation |
-|------------------|----------------|
-| 🔐 **Token Storage** | Tokens stored securely on MCP server, not on client |
-| 🛡️ **Context Sanitization** | Performed on MCP server before sending responses to Agent |
-| ✅ **Input Validation** | Comprehensive sanitization implemented on MCP server |
-| 🎯 **Authorization Checks** | Fine-grained checks performed against Rally APIs |
-| 🔒 **PKCE Protection** | Prevents authorization code interception attacks |
-| 🎲 **State Parameter** | CSRF protection linking authentication to specific requests |
-| 🚫 **Prompt Injection Defense** | Server-side filtering of malicious prompts |
-| 📏 **Resource Protection** | Context size limits and DoS prevention |
-| 🛡️ **AI Threat Detection** | Model Armor integration for advanced threats | PKCE**.
+| **Priority** | **Security Controls** | **Implementation Timeline** |
+|--------------|----------------------|----------------------------|
+| **P0 - Critical** | InputSanitizer, GoogleCloudTokenValidator | Deploy before any user access |
+| **P1 - High** | SchemaValidator, CredentialManager | Deploy before production |
+| **P2 - High** | ContextSanitizer, ToolExposureController | Deploy before production |
+| **P3 - Optional** | ServerNameRegistry, SemanticMappingValidator | Deploy for enhanced security |
+| **P4 - Skip** | OPAPolicyClient | Use ToolExposureController instead |
+
+### 🔒 Security Implementation Summary for Out-of-Box Scenario
+
+| Security Control | Implementation Status | Technology Stack |
+|------------------|----------------------|------------------|
+| 🔐 **InputSanitizer** | ✅ MANDATORY on MCP Server | Regex patterns, HTML escaping, content filtering |
+| 🛡️ **GoogleCloudTokenValidator** | ✅ MANDATORY on MCP Server | Cloud Run headers, google.auth, JWT validation |
+| ✅ **SchemaValidator** | ✅ MANDATORY on MCP Server | jsonschema library, JSON-RPC 2.0 compliance |
+| 🎯 **CredentialManager** | ✅ MANDATORY on MCP Server | Google Cloud Secret Manager, secure caching |
+| � **ContextSanitizer** | ✅ MANDATORY on MCP Server | Model Armor API, regex fallback, PII detection |
+| 🎲 **ToolExposureController** | ✅ MANDATORY on MCP Server | JSON policies, approval workflows, service account auth |
+| 🚫 **ServerNameRegistry** | 🔶 OPTIONAL on MCP Server | Custom registry, namespace management |
+| 📏 **SemanticMappingValidator** | 🔶 OPTIONAL on MCP Server | Metadata validation, semantic consistency |
+| 🛡️ **OPAPolicyClient** | ❌ SKIP - Use ToolExposureController | Limited context in out-of-box scenario |
+
+### � Security Coverage Analysis
+
+**✅ Comprehensive Protection (6 Mandatory Controls)**
+- All critical attack vectors covered by MCP Server
+- Defense-in-depth with multiple security layers
+- OAuth 2.1 integration with Google Cloud authentication
+- Advanced threat detection via Model Armor integration
+
+**🔶 Enhanced Features (2 Optional Controls)**
+- Server identity verification for multi-server environments
+- Tool metadata validation for dynamic tool scenarios
+
+**❌ Limitations (1 Skipped Control)**
+- Cannot implement rich context-aware policies (use static service account policies instead)
+- Limited visibility into Agent/LLM internal processing
+- Must rely on OAuth 2.1 service account permissions for user authorization
+
+This security analysis ensures that all practical and effective security controls from the MCP Framework are properly implemented for out-of-box IDE integration scenarios, with clear prioritization and implementation guidance. PKCE**.
 
 ---
 
