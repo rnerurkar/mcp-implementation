@@ -59,55 +59,86 @@ The framework implements **9 consolidated security controls** through a Template
 
 ### **Enterprise Integration Architecture**
 
-**High-Level Component Architecture:**
+**High-Level Extensibility Architecture:**
 
 ```mermaid
 graph TB
-    subgraph "Template Method Framework - Reusable Foundation"
-        TM[Template Method Engine<br/>🔧 Security Pipeline<br/>🛡️ Authentication<br/>📊 Monitoring]
-        SC[Security Controls Layer<br/>🔐 OAuth 2.1 + PKCE<br/>🛡️ Input Validation<br/>📝 Audit Logging]
+    subgraph "BASE CLASSES - Template Method Implementation"
+        BA[BaseAgent<br/>�️ Security Controls: 3<br/>• Prompt Injection Protection<br/>• Context Size Validation<br/>• Response Sanitization<br/>📐 Template Method Pattern]
+        BM[BaseMCPServer<br/>🛡️ Security Controls: 5<br/>• Input Sanitization<br/>• Token Validation<br/>• Schema Validation<br/>• Credential Management<br/>• Context Sanitization<br/>📐 Template Method Pattern]
     end
     
-    subgraph "Agent Layer - Unlimited Extensions"
-        A1[Underwriting Agent<br/>📋 Risk Assessment<br/>⚡ Zero Security Code]
-        A2[Claims Processing Agent<br/>� Automated Claims Review<br/>⚡ Zero Security Code]
-        A3[Fraud Detection Agent<br/>� Pattern Analysis<br/>⚡ Zero Security Code]
-        AN[Business Process Agent N...<br/>💼 Any Business Workflow<br/>⚡ Zero Security Code]
+    subgraph "UNLIMITED AGENTS - Zero Security Code"
+        A1[UnderwritingAgent<br/>📋 Risk Assessment<br/>⚡ Inherits All Security]
+        A2[ClaimsAgent<br/>📄 Claims Processing<br/>⚡ Inherits All Security]
+        A3[FraudAgent<br/>🔍 Pattern Analysis<br/>⚡ Inherits All Security]
+        A4[ComplianceAgent<br/>📊 Compliance Checks<br/>⚡ Inherits All Security]
+        AN[CustomAgent N...<br/>💼 Any Business Logic<br/>⚡ Inherits All Security]
     end
     
-    subgraph "MCP Server Infrastructure"
-        MCP[MCP Server<br/>☁️ Cloud-Native<br/>🔄 Auto-Scaling<br/>📡 Business API Gateway]
-        API[Business Systems<br/>🏢 Core Banking<br/>💰 Policy Management<br/>� Risk Analytics<br/>🌐 Any Business API]
+    subgraph "UNLIMITED MCP SERVERS - Zero Security Code"
+        M1[BankingMCPServer<br/>🏦 Core Banking APIs<br/>⚡ Inherits All Security]
+        M2[InsuranceMCPServer<br/>📄 Policy Management<br/>⚡ Inherits All Security]
+        M3[RiskMCPServer<br/>� Risk Analytics<br/>⚡ Inherits All Security]
+        M4[LegacyMCPServer<br/>�️ Legacy Systems<br/>⚡ Inherits All Security]
+        MN[CustomMCPServer N...<br/>🌐 Any Business API<br/>⚡ Inherits All Security]
     end
     
-    TM -.->|Inherits Security| A1
-    TM -.->|Inherits Security| A2
-    TM -.->|Inherits Security| A3
-    TM -.->|Inherits Security| AN
+    subgraph "BUSINESS SYSTEMS"
+        API[Enterprise APIs<br/>🏢 Core Banking<br/>💰 Policy Management<br/>📊 Risk Analytics<br/>🗂️ Legacy Systems]
+    end
     
-    A1 -->|Secure Request| MCP
-    A2 -->|Secure Request| MCP
-    A3 -->|Secure Request| MCP
-    AN -->|Secure Request| MCP
+    BA -.->|Inheritance| A1
+    BA -.->|Inheritance| A2
+    BA -.->|Inheritance| A3
+    BA -.->|Inheritance| A4
+    BA -.->|Inheritance| AN
     
-    MCP -->|Authenticated Calls| API
+    BM -.->|Inheritance| M1
+    BM -.->|Inheritance| M2
+    BM -.->|Inheritance| M3
+    BM -.->|Inheritance| M4
+    BM -.->|Inheritance| MN
     
-    SC -->|Protects All| MCP
+    A1 -->|MCP Protocol| M1
+    A2 -->|MCP Protocol| M2
+    A3 -->|MCP Protocol| M3
+    A4 -->|MCP Protocol| M4
+    AN -->|MCP Protocol| MN
     
-    style TM fill:#e1f5fe,stroke:#01579b,stroke-width:3px
-    style SC fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
-    style A1 fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    style A2 fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    style A3 fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    style AN fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    style MCP fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+    M1 -->|Authenticated API Calls| API
+    M2 -->|Authenticated API Calls| API
+    M3 -->|Authenticated API Calls| API
+    M4 -->|Authenticated API Calls| API
+    MN -->|Authenticated API Calls| API
+    
+    style BA fill:#e3f2fd,stroke:#1976d2,stroke-width:4px
+    style BM fill:#e3f2fd,stroke:#1976d2,stroke-width:4px
+    style A1 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style A2 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style A3 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style A4 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style AN fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style M1 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style M2 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style M3 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style M4 fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style MN fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style API fill:#fff3e0,stroke:#f57c00,stroke-width:3px
 ```
 
 **Core Framework Design:**
-- **Custom AI Agents** communicate directly with MCP servers
-- **Template Method Pattern** provides consistent security across all agent implementations
-- **Agent Service Layer** handles business logic and workflow orchestration
-- **MCP Server** manages authentication, API integration, and security controls
+- **BaseAgent & BaseMCPServer Classes** provide Template Method implementation with built-in security
+- **Unlimited Agent Extensions** inherit all security controls automatically (zero security code required)
+- **Unlimited MCP Server Extensions** inherit all security controls automatically (zero security code required)
+- **MCP Protocol Communication** ensures secure, standards-based agent-to-server communication
+- **Business API Integration** through specialized MCP servers for any enterprise system
+
+**Extensibility Benefits:**
+- **6 Hours vs 6 Months**: New agents/servers inherit complete security implementation
+- **Zero Security Debt**: No custom security code to maintain across unlimited implementations
+- **Template Method Consistency**: All extensions follow the same enterprise-grade patterns
+- **Unlimited Scalability**: Framework supports any number of business process integrations
 
 **End-to-End Workflow:**
 1. **Business AI Agent** → Template Method security validation
@@ -117,10 +148,12 @@ graph TB
 5. **Secure Response** → Context sanitization + delivery
 
 **Key Differentiators:**
-- **Template Method Pattern**: One security implementation protects unlimited agents
-- **Standards-Based**: Industry-standard MCP protocol ensures future compatibility
+- **Inheritance-Based Security**: BaseAgent & BaseMCPServer classes provide automatic security inheritance
+- **Unlimited Extensibility**: Create unlimited agents and MCP servers with zero security implementation
+- **Template Method Pattern**: One security implementation scales to infinite business applications
+- **Standards-Based**: Industry-standard MCP protocol ensures future compatibility and vendor independence
 - **Cloud-Native**: Auto-scaling GCP deployment with 99.9% uptime SLA
-- **Business-Centric**: Direct MCP communication for maximum business process automation
+- **Zero Maintenance Overhead**: Security updates propagate automatically to all implementations
 
 ### **Template Method Pattern Business Value**
 
