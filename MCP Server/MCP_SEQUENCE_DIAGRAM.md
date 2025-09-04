@@ -1,6 +1,8 @@
 # MCP Enhanced Security Sequence Diagram
 
-This document provides sequence diagrams showing the complete end-to-end flow through the enhanced 3-layer MCP security architecture, including Model Armor integration and LLM Guard protection.
+This document provides sequence diagrams s    %% Layer 3: MCP Server Security (9 Controls)
+    rect rgb(255, 220, 220)
+        Note over MCP: Layer 3: MCP Server Security (9 Controls)ing the complete end-to-end flow through the enhanced 3-layer MCP security architecture with comprehensive security and LLM Guard protection.
 
 ## Enhanced 3-Layer Security Flow
 
@@ -14,7 +16,7 @@ This document provides sequence diagrams showing the complete end-to-end flow th
 │ Security Controls Applied:                                      │
 │ • Layer 1: 4 Gateway Controls                                  │
 │ • Layer 2: 6 Agent Controls (4 + 2 LLM Guards)                 │
-│ • Layer 3: 12 MCP Server Controls                              │
+│ • Layer 3: 9 MCP Server Controls                               │
 │ • Total: 22 Security Controls with Model Armor Integration     │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -92,7 +94,7 @@ sequenceDiagram
         MCP->>MCP: 7.1 InputSanitizer.sanitize()
         MCP->>ModelArmor: 7.1.1 Model Armor Input Check
         ModelArmor-->>MCP: 7.1.2 Input Analysis
-        MCP->>MCP: 7.2 SchemaValidator.validate()
+        MCP->>MCP: 7.2 SchemaValidator.validate_jsonrpc_message()
         Note over MCP: ✅ Phase 1: Pre-auth (1-2ms)
 
         %% Phase 2: Authentication (Controls 3-4)
@@ -100,21 +102,18 @@ sequenceDiagram
         MCP->>MCP: 7.4 OPAPolicyClient.check_policy()
         Note over MCP: ✅ Phase 2: Authentication (5-10ms)
 
-        %% Phase 3: Zero-Trust Infrastructure (Controls 5-7)
-        MCP->>MCP: 7.5 InstallerSecurityValidator.validate_tool_integrity()
-        MCP->>MCP: 7.6 ServerNameRegistry.verify_server_identity()
-        MCP->>MCP: 7.7 RemoteServerAuthenticator.authenticate_remote_server()
+        %% Phase 3: Zero-Trust Infrastructure (Controls 5-6)
+        MCP->>MCP: 7.5 ServerNameRegistry.verify_server_identity()
+        MCP->>MCP: 7.6 ToolExposureController.validate_tool_exposure()
         Note over MCP: ✅ Phase 3: Infrastructure (3-5ms)
 
-        %% Phase 4: Tool-Specific Security (Controls 8-9)
-        MCP->>MCP: 7.8 ToolExposureController.validate_tool_exposure()
-        MCP->>MCP: 7.9 SemanticMappingValidator.validate_tool_semantics()
+        %% Phase 4: Tool-Specific Security (Controls 7-8)
+        MCP->>MCP: 7.7 SemanticMappingValidator.validate_tool_semantics()
+        MCP->>MCP: 7.8 CredentialManager.get_credentials()
         Note over MCP: ✅ Phase 4: Tool Security (2-3ms)
 
-        %% Phase 5: Data Processing (Controls 10-12)
-        MCP->>MCP: 7.10 CredentialManager.get_credentials()
-        MCP->>MCP: 7.11 ContextSanitizer.sanitize()
-        MCP->>MCP: 7.12 ContextSecurity.sign()
+        %% Phase 5: Data Processing (Control 9)
+        MCP->>MCP: 7.9 ContextSanitizer.sanitize()
         Note over MCP: ✅ Phase 5: Data Processing (3-5ms)
     end
 
@@ -208,7 +207,7 @@ graph TD
     H2 --> H3[Reject: Unsafe Output]
 ```
 
-### **Layer 3: MCP Server (12 Controls)**
+### **Layer 3: MCP Server (9 Controls)**
 
 ```mermaid
 graph TD
@@ -272,7 +271,7 @@ graph TD
 |-------|----------|----------|-------------|
 | **Apigee Gateway** | 4 | ~5ms | External authentication & rate limiting |
 | **Agent Service** | 6 | 11-13ms | Agent-specific + LLM protection |
-| **MCP Server** | 12 | 14-25ms | Comprehensive tool security |
+| **MCP Server** | 9 | 14-25ms | Comprehensive tool security |
 | **Model Armor** | API | 3-4ms | Per API call with fallback |
 | **Total** | 22 | ~30-43ms | Complete security pipeline |
 
