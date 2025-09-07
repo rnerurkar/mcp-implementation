@@ -327,27 +327,31 @@ sequenceDiagram
     User->>Agent: 1. "Create a Rally story"
     Agent->>MCP: 2. POST /tools/create-story<br>Session-ID: session_123
     MCP->>MCP: 3. Check DB for token for session_123
-    MCP->>Agent: 4. HTTP 401 Unauthorized<br>Authentication Required<br>auth_url: "https://mcp.example.com/auth?state=xyz789"
+    MCP->>MCP: 4. Generate PKCE parameters:<br>code_verifier: random_string_43_128_chars<br>code_challenge: SHA256(code_verifier)<br>state: cryptographically_random_token
+    MCP->>Agent: 5. HTTP 401 Unauthorized<br>Authentication Required<br>auth_url: "https://mcp.example.com/auth?state=xyz789&code_challenge=abc123def"
 
-    Agent->>User: 5. Display message:<br>"🔐 Authentication required for Rally access.<br>Please visit: https://mcp.example.com/auth?state=xyz789<br>Then return here and say 'authentication complete'"
+    Agent->>User: 6. Display message:<br>"🔐 Authentication required for Rally access.<br>Please visit: https://mcp.example.com/auth?state=xyz789&code_challenge=abc123def<br>Then return here and say 'authentication complete'"
     
-    Note over User,Browser: User manually opens browser and completes OAuth flow
-    User->>Browser: 6. Opens auth URL in browser
-    Browser->>MCP: 7. GET /auth?state=xyz789 (displays OAuth page)
-    MCP->>Browser: 8. Redirect to Rally OAuth server
-    Browser->>AuthSrv: 9. User authenticates and consents
-    AuthSrv->>MCP: 10. Redirect to /callback?code=abc123&state=xyz789
-    MCP->>AuthSrv: 11. POST /token (exchange code for tokens)
-    AuthSrv->>MCP: 12. access_token, refresh_token
-    MCP->>MCP: 13. Store tokens for session_123 (linked via state)
-    MCP->>Browser: 14. "✅ Authentication successful! You can now close this tab and return to VSCode."
+    Note over User,Browser: User manually opens browser and completes OAuth flow with PKCE
+    User->>Browser: 7. Opens auth URL in browser (includes code_challenge)
+    Browser->>MCP: 8. GET /auth?state=xyz789&code_challenge=abc123def
+    MCP->>MCP: 9. Store code_verifier linked to state token
+    MCP->>Browser: 10. Redirect to Rally OAuth server with PKCE parameters:<br>code_challenge + code_challenge_method=S256
+    Browser->>AuthSrv: 11. User authenticates and consents (OAuth server validates code_challenge)
+    AuthSrv->>MCP: 12. Redirect to /callback?code=auth_code_123&state=xyz789
+    MCP->>MCP: 13. Retrieve stored code_verifier for state=xyz789
+    MCP->>AuthSrv: 14. POST /token<br>code=auth_code_123<br>code_verifier=original_random_string<br>client_id + redirect_uri
+    AuthSrv->>AuthSrv: 15. Verify: SHA256(code_verifier) == code_challenge
+    AuthSrv->>MCP: 16. access_token, refresh_token (PKCE validation passed)
+    MCP->>MCP: 17. Store tokens for session_123 (linked via state)
+    MCP->>Browser: 18. "✅ Authentication successful! You can now close this tab and return to VSCode."
     
-    User->>Agent: 15. "Authentication complete"
-    Agent->>MCP: 16. RETRY POST /tools/create-story<br>Session-ID: session_123
-    MCP->>MCP: 17. Find stored tokens for session_123
-    MCP->>MCP: 18. Execute tool with stored tokens
-    MCP->>Agent: 19. 200 OK: Story created successfully
-    Agent->>User: 20. "✅ Rally story created successfully!"
+    User->>Agent: 19. "Authentication complete"
+    Agent->>MCP: 20. RETRY POST /tools/create-story<br>Session-ID: session_123
+    MCP->>MCP: 21. Find stored tokens for session_123
+    MCP->>MCP: 22. Execute tool with stored tokens
+    MCP->>Agent: 23. 200 OK: Story created successfully
+    Agent->>User: 24. "✅ Rally story created successfully!"
 ```
 
 ---
@@ -382,16 +386,37 @@ Headers:
 Content: <query_parameters>
 ```
 
-### 4. 🔍 Authentication Check on MCP Server
+### 4. 🔍 Authentication Check and PKCE Generation
 
 MCP server processes the request:
 
 - ✅ **Checks** database for access token associated with Session ID
 - ❌ **No token exists** (first request)
-- **Responds** with `HTTP 401`
-- **Includes** authentication URL in response body (not as a clickable link)
+- 🔐 **Generates PKCE parameters** (OAuth 2.1 requirement):
+  - `code_verifier`: Cryptographically random string (43-128 characters)
+  - `code_challenge`: SHA256 hash of code_verifier, base64url-encoded
+  - `state`: Cryptographically random token for CSRF protection
+- 💾 **Stores** code_verifier linked to state token in database
+- **Responds** with `HTTP 401` and authentication URL containing code_challenge
 
-### 5. 🔐 Manual User Authentication Flow
+**PKCE Parameter Generation Example:**
+```python
+import secrets
+import hashlib
+import base64
+
+# Generate code_verifier (43-128 characters)
+code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+
+# Generate code_challenge (SHA256 of code_verifier)
+code_challenge = base64.urlsafe_b64encode(
+    hashlib.sha256(code_verifier.encode('utf-8')).digest()
+).decode('utf-8').rstrip('=')
+
+# Store association: state_token -> {code_verifier, session_id}
+```
+
+### 5. 🔐 Manual User Authentication Flow with PKCE
 
 **⚠️ CRITICAL: GitHub Copilot Cannot Render Interactive Links**
 
@@ -406,33 +431,57 @@ Instead of rendering clickable links (which Copilot cannot do), the Agent:
 🔐 Authentication required for Rally access.
 
 Please follow these steps:
-1. Copy this URL: https://mcp.example.com/auth?state=xyz789
+1. Copy this URL: https://mcp.example.com/auth?state=xyz789&code_challenge=abc123def456
 2. Open it in your browser
 3. Complete the Rally authentication
 4. Return here and say "authentication complete"
+
+Note: This URL includes PKCE security parameters for OAuth 2.1 compliance.
 ```
 
-### 6. 🌐 User Completes OAuth in Browser (Manual Process)
+### 6. 🌐 User Completes OAuth in Browser with PKCE (Manual Process)
 
-User manually completes authentication:
+User manually completes PKCE-protected authentication:
 
-1. **User copies URL** from Copilot chat
+1. **User copies URL** from Copilot chat (includes code_challenge parameter)
 2. **Opens URL in browser** (separate from VSCode)
-3. **Completes OAuth flow** with Rally
-4. **Sees success message** in browser
-5. **Returns to VSCode** and confirms completion
+3. **MCP Server processes** authentication request:
+   - Stores code_verifier linked to state token
+   - Redirects to Rally OAuth server with PKCE parameters
+4. **Completes OAuth flow** with Rally (OAuth server validates code_challenge)
+5. **Sees success message** in browser after PKCE validation
+6. **Returns to VSCode** and confirms completion
 
-### 7. 🔄 OAuth Redirect and Token Exchange
+### 7. 🔄 OAuth Redirect and Token Exchange with PKCE Verification
 
-OAuth flow completion (same as before):
+OAuth flow completion with PKCE validation:
 
 1. **Rally OAuth server** redirects to MCP server's callback with authorization code
 2. **MCP server callback** endpoint:
    - ✅ Validates `state` parameter (CSRF protection)
-   - 🔍 Retrieves associated Session ID
-   - 🔄 Exchanges authorization code for access token
+   - 🔍 Retrieves stored `code_verifier` for the state token
+   - 🔍 Retrieves associated Session ID from state mapping
+   - � **PKCE Token Exchange**:
+     ```http
+     POST /oauth/token
+     Content-Type: application/x-www-form-urlencoded
+     
+     grant_type=authorization_code
+     &code=authorization_code_from_rally
+     &client_id=your_rally_client_id
+     &code_verifier=original_code_verifier_value
+     &redirect_uri=https://mcp.example.com/callback
+     ```
+   - ✅ **Rally validates**: `SHA256(code_verifier) == stored_code_challenge`
+   - 🔄 **Receives tokens** only if PKCE verification passes
    - 💾 Stores tokens in database mapped to Session ID
    - 📄 Returns HTML success page to browser
+
+**🔐 PKCE Security Benefits:**
+- Prevents authorization code interception attacks
+- Ensures only the client that initiated the flow can exchange the code
+- No client secret required (suitable for public clients)
+- Cryptographically binds authorization request to token request
 
 ### 8. ↩️ User Confirmation and Request Retry
 
@@ -530,14 +579,35 @@ This mechanism ensures that even though the OAuth flow happens out-of-band in a 
 
 ---
 
-## �🔑 Key Points
+## 🔑 Key Points
 
 | Aspect | Description |
 |--------|-------------|
 | 🆔 **Session ID Management** | Generated once by Agent and used consistently to maintain state |
-| 🔐 **OAuth Flow** | MCP server acts as OAuth client, handling entire flow including PKCE |
-| 🔄 **Retry Mechanism** | Agent automatically retries after authentication completion |
-| 🛡️ **Security** | PKCE prevents authorization code interception; state parameter binds authentication to request |
+| 🔐 **OAuth 2.1 with PKCE** | MCP server implements full PKCE flow (code_verifier + code_challenge) for security |
+| 🌐 **Manual Authentication** | **CRITICAL**: User must manually open browser and complete OAuth (Agent cannot render interactive links) |
+| 💬 **User Confirmation Required** | User must return to Agent and confirm "authentication complete" before retry |
+| 🔄 **Manual Retry Trigger** | Agent retries original request only after user confirmation (no automatic retry) |
+| 🛡️ **PKCE Security** | Prevents authorization code interception; cryptographically binds auth request to token exchange |
+| � **State Parameter** | CSRF protection that links OAuth callback to original Agent session |
+
+## 🔐 **PKCE Implementation Details**
+
+| PKCE Component | Purpose | Implementation |
+|----------------|---------|----------------|
+| **code_verifier** | Secret random string (43-128 chars) | Generated by MCP Server, stored temporarily |
+| **code_challenge** | SHA256 hash of code_verifier | Included in authorization URL, sent to OAuth server |
+| **code_challenge_method** | Hashing method (always "S256") | Tells OAuth server how to verify the challenge |
+| **PKCE Verification** | OAuth server validates verifier matches challenge | `SHA256(code_verifier) == code_challenge` |
+
+**🔒 PKCE Security Flow:**
+1. MCP Server generates random `code_verifier`
+2. MCP Server creates `code_challenge = SHA256(code_verifier)`
+3. Authorization URL includes `code_challenge` parameter
+4. OAuth server stores `code_challenge` for this authorization request
+5. Token exchange includes original `code_verifier`
+6. OAuth server verifies `SHA256(received_code_verifier) == stored_code_challenge`
+7. Tokens issued only if PKCE verification passes
 
 ---
 
@@ -618,11 +688,11 @@ Since you're already authenticated, I was able to create this story immediately.
 
 ---
 
-## � OAuth 2.1 AuthURL Examples
+## 🔗 OAuth 2.1 AuthURL Examples with PKCE
 
-Here are examples of AuthURLs that an MCP server would generate for Rally and GitHub, based on the OAuth 2.1 authorization code flow with PKCE (Proof Key for Code Exchange), which is the current MCP authentication standard.
+Here are examples of AuthURLs that an MCP server would generate for Rally and GitHub, based on the OAuth 2.1 authorization code flow with PKCE (Proof Key for Code Exchange), which is **MANDATORY** for OAuth 2.1 compliance.
 
-### Example AuthURL for Rally
+### Example AuthURL for Rally (with PKCE)
 
 ```text
 https://rally1.rallydev.com/login/oauth2/auth?
@@ -635,7 +705,7 @@ https://rally1.rallydev.com/login/oauth2/auth?
   &code_challenge_method=S256
 ```
 
-### Example AuthURL for GitHub
+### Example AuthURL for GitHub (with PKCE)
 
 ```text
 https://github.com/login/oauth/authorize?
@@ -646,6 +716,29 @@ https://github.com/login/oauth/authorize?
   &state=8b4c6e2a1d9f3e7c5a0b2d8e3f1a5c7b
   &code_challenge=kL9aBc3dF1gS4iJ7yT6oM5VXp1mP5z6uRxE3Xv8w7Wr2qH0n
   &code_challenge_method=S256
+```
+
+### 🔐 PKCE Parameters Explained
+
+| Parameter | Description | Example Value | Security Purpose |
+|-----------|-------------|---------------|------------------|
+| **code_challenge** | SHA256 hash of code_verifier (base64url-encoded) | `5VXp1mP5z6uRxE3Xv8w7Wr2qH0nK8lL9aBc3dF1gS4iJ7yT6oM` | Prevents authorization code interception |
+| **code_challenge_method** | Hashing method for PKCE | `S256` (SHA256) | Tells OAuth server how to verify challenge |
+| **state** | CSRF protection token | `7a3f81b0e5c2d4a6b9c8e1f2a7d3e5c8` | Links OAuth callback to original session |
+| **code_verifier** | Original random string (NOT in URL) | `7w8x9y0z1a2b3c4d5e6f` | Sent later during token exchange |
+
+### 🛡️ PKCE Security Flow
+
+```mermaid
+graph LR
+    A[MCP Server Generates<br/>code_verifier] --> B[Calculate<br/>code_challenge = SHA256]
+    B --> C[Include code_challenge<br/>in Auth URL]
+    C --> D[User Completes OAuth<br/>at OAuth Server]
+    D --> E[OAuth Server Stores<br/>code_challenge]
+    E --> F[Authorization Code<br/>Returned to MCP Server]
+    F --> G[MCP Server Sends<br/>code_verifier in Token Request]
+    G --> H[OAuth Server Verifies<br/>SHA256 Match]
+    H --> I[Tokens Issued Only<br/>if PKCE Valid]
 ```
 
 ### 🔍 Key Components Explained
