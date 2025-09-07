@@ -581,64 +581,108 @@ This mechanism ensures that even though the OAuth flow happens out-of-band in a 
 
 ## 💻 **MCP Server Implementation Code Snippets**
 
+> **🚀 Note: FastMCP + FastAPI Implementation**
+> 
+> The code snippets below use **FastMCP** with **FastAPI** instead of Flask for several important reasons:
+> 
+> **✅ Native MCP Protocol Support:**
+> - FastMCP provides built-in MCP tool registration and protocol handling
+> - Automatic MCP message serialization/deseriization
+> - Standard MCP security and authentication patterns
+> 
+> **✅ Performance & Modern Architecture:**
+> - FastAPI is ASGI-based (faster than Flask's WSGI)
+> - Native async/await support for better concurrency
+> - Automatic OpenAPI documentation generation
+> 
+> **✅ Type Safety & Validation:**
+> - Pydantic models for request/response validation
+> - Automatic type checking and error handling
+> - Better debugging and development experience
+> 
+> **✅ MCP Ecosystem Integration:**
+> - Direct compatibility with MCP clients like GitHub Copilot
+> - Standard tool registration patterns
+> - Built-in security hooks and middleware support
+
 ### 1. 🚫 Initial Tool Call - 401 Unauthorized Response
 
-**Endpoint**: `POST /tools/create-story` (First Time Call)
+**FastMCP Tool**: `create_story` (First Time Call)
 
 ```python
-from flask import Flask, request, jsonify
+from fastmcp import FastMCP
+from fastapi import FastAPI, HTTPException, Depends, Header
+from pydantic import BaseModel
 import secrets
 import hashlib
 import base64
 import sqlite3
 from datetime import datetime
+from typing import Optional
 
-app = Flask(__name__)
+# Initialize FastMCP server with FastAPI
+app = FastAPI(title="Rally MCP Server", version="1.0.0")
+mcp = FastMCP("Rally Integration Server")
 
-@app.route('/tools/create-story', methods=['POST'])
-def create_story_tool():
+class CreateStoryRequest(BaseModel):
+    title: str
+    description: str = ""
+    points: int = 1
+
+class AuthErrorResponse(BaseModel):
+    error: str
+    error_description: str
+    auth_url: str
+    instructions: list[str]
+
+@mcp.tool()
+async def create_story_tool(
+    request: CreateStoryRequest,
+    session_id: Optional[str] = Header(None, alias="Session-ID")
+):
     """
-    MCP Server tool endpoint for creating Rally stories.
-    Returns 401 with PKCE parameters if user not authenticated.
+    FastMCP tool for creating Rally stories.
+    Returns authentication error with PKCE parameters if user not authenticated.
     """
-    # Extract session ID from headers
-    session_id = request.headers.get('Session-ID')
     if not session_id:
-        return jsonify({
-            'error': 'Missing Session-ID header',
-            'code': 'MISSING_SESSION_ID'
-        }), 400
+        raise HTTPException(
+            status_code=400,
+            detail="Missing Session-ID header"
+        )
     
     # Check if we have valid tokens for this session
-    tokens = get_stored_tokens(session_id)
+    tokens = await get_stored_tokens(session_id)
     if not tokens:
         # Generate PKCE parameters for OAuth flow
         pkce_data = generate_pkce_parameters()
         state_token = secrets.token_urlsafe(32)
         
         # Store PKCE and session mapping
-        store_oauth_state(state_token, session_id, pkce_data['code_verifier'])
+        await store_oauth_state(state_token, session_id, pkce_data['code_verifier'])
         
         # Build authorization URL
         auth_url = build_authorization_url(state_token, pkce_data['code_challenge'])
         
-        # Return 401 with authentication required
-        return jsonify({
-            'error': 'Authentication required',
-            'error_description': 'User must authenticate with Rally to access this tool',
-            'auth_url': auth_url,
-            'instructions': [
-                '1. Copy the auth_url and open it in your browser',
-                '2. Complete Rally authentication and authorization',
-                '3. Return to this chat and say "authentication complete"',
-                '4. Retry your original request'
-            ]
-        }), 401
+        # Return authentication required error
+        raise HTTPException(
+            status_code=401,
+            detail=AuthErrorResponse(
+                error="Authentication required",
+                error_description="User must authenticate with Rally to access this tool",
+                auth_url=auth_url,
+                instructions=[
+                    "1. Copy the auth_url and open it in your browser",
+                    "2. Complete Rally authentication and authorization",
+                    "3. Return to this chat and say 'authentication complete'",
+                    "4. Retry your original request"
+                ]
+            ).dict()
+        )
     
     # If we reach here, tokens exist - proceed with tool execution
-    return execute_create_story_tool(session_id, tokens, request.json)
+    return await execute_create_story_tool(session_id, tokens, request)
 
-def generate_pkce_parameters():
+async def generate_pkce_parameters():
     """Generate PKCE code_verifier and code_challenge"""
     # Generate cryptographically random code_verifier (43-128 chars)
     code_verifier = base64.urlsafe_b64encode(
@@ -655,18 +699,17 @@ def generate_pkce_parameters():
         'code_challenge': code_challenge
     }
 
-def store_oauth_state(state_token, session_id, code_verifier):
+async def store_oauth_state(state_token: str, session_id: str, code_verifier: str):
     """Store OAuth state mapping in database"""
-    conn = sqlite3.connect('mcp_server.db')
-    cursor = conn.cursor()
+    # Use async database operations
+    import aiosqlite
     
-    cursor.execute('''
-        INSERT INTO oauth_states (state_token, session_id, code_verifier, created_at)
-        VALUES (?, ?, ?, ?)
-    ''', (state_token, session_id, code_verifier, datetime.utcnow()))
-    
-    conn.commit()
-    conn.close()
+    async with aiosqlite.connect('mcp_server.db') as db:
+        await db.execute('''
+            INSERT INTO oauth_states (state_token, session_id, code_verifier, created_at)
+            VALUES (?, ?, ?, ?)
+        ''', (state_token, session_id, code_verifier, datetime.utcnow()))
+        await db.commit()
 
 def build_authorization_url(state_token, code_challenge):
     """Build OAuth authorization URL with PKCE parameters"""
@@ -698,39 +741,38 @@ def build_authorization_url(state_token, code_challenge):
 
 ### 2. 🔐 Authorization Endpoint - PKCE Processing
 
-**Endpoint**: `GET /auth` (Handles PKCE and redirects to Rally)
+**FastAPI Endpoint**: `GET /auth` (Handles PKCE and redirects to Rally)
 
 ```python
-from flask import redirect
+from fastapi import Query
+from fastapi.responses import RedirectResponse
 
-@app.route('/auth', methods=['GET'])
-def authorize():
+@app.get("/auth")
+async def authorize(
+    state: str = Query(..., description="OAuth state token"),
+    code_challenge: str = Query(..., description="PKCE code challenge"),
+    code_challenge_method: str = Query(..., description="PKCE challenge method")
+):
     """
-    MCP Server authorization endpoint that processes PKCE parameters
+    FastAPI authorization endpoint that processes PKCE parameters
     and redirects user to Rally OAuth server.
     """
-    state_token = request.args.get('state')
-    code_challenge = request.args.get('code_challenge')
-    code_challenge_method = request.args.get('code_challenge_method')
-    
-    if not all([state_token, code_challenge, code_challenge_method]):
-        return jsonify({
-            'error': 'Missing required PKCE parameters',
-            'required': ['state', 'code_challenge', 'code_challenge_method']
-        }), 400
-    
     if code_challenge_method != 'S256':
-        return jsonify({
-            'error': 'Unsupported code_challenge_method',
-            'supported': ['S256']
-        }), 400
+        raise HTTPException(
+            status_code=400,
+            detail={
+                'error': 'Unsupported code_challenge_method',
+                'supported': ['S256']
+            }
+        )
     
     # Verify state token exists and retrieve associated data
-    oauth_data = get_oauth_state(state_token)
+    oauth_data = await get_oauth_state(state)
     if not oauth_data:
-        return jsonify({
-            'error': 'Invalid or expired state token'
-        }), 400
+        raise HTTPException(
+            status_code=400,
+            detail={'error': 'Invalid or expired state token'}
+        )
     
     # Verify code_challenge matches stored code_verifier
     stored_verifier = oauth_data['code_verifier']
@@ -739,29 +781,28 @@ def authorize():
     ).decode('utf-8').rstrip('=')
     
     if code_challenge != expected_challenge:
-        return jsonify({
-            'error': 'Invalid code_challenge - does not match stored code_verifier'
-        }), 400
+        raise HTTPException(
+            status_code=400,
+            detail={'error': 'Invalid code_challenge - does not match stored code_verifier'}
+        )
     
     # Build Rally OAuth URL with PKCE parameters
-    rally_oauth_url = build_rally_oauth_url(state_token, code_challenge)
+    rally_oauth_url = build_rally_oauth_url(state, code_challenge)
     
     # Redirect user to Rally OAuth server
-    return redirect(rally_oauth_url)
+    return RedirectResponse(url=rally_oauth_url)
 
-def get_oauth_state(state_token):
+async def get_oauth_state(state_token: str):
     """Retrieve OAuth state data from database"""
-    conn = sqlite3.connect('mcp_server.db')
-    cursor = conn.cursor()
+    import aiosqlite
     
-    cursor.execute('''
-        SELECT session_id, code_verifier, created_at 
-        FROM oauth_states 
-        WHERE state_token = ? AND created_at > datetime('now', '-10 minutes')
-    ''', (state_token,))
-    
-    result = cursor.fetchone()
-    conn.close()
+    async with aiosqlite.connect('mcp_server.db') as db:
+        async with db.execute('''
+            SELECT session_id, code_verifier, created_at 
+            FROM oauth_states 
+            WHERE state_token = ? AND created_at > datetime('now', '-10 minutes')
+        ''', (state_token,)) as cursor:
+            result = await cursor.fetchone()
     
     if result:
         return {
@@ -1067,7 +1108,32 @@ CREATE INDEX idx_oauth_states_state_token ON oauth_states(state_token);
 CREATE INDEX idx_session_tokens_session_id ON session_tokens(session_id);
 ```
 
-### 🔒 **Security Notes**
+### � **FastMCP Installation & Setup**
+
+```bash
+# Install FastMCP and dependencies
+pip install fastmcp fastapi uvicorn aiosqlite httpx pydantic
+
+# Run the MCP server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Key Dependencies:**
+- `fastmcp`: Native MCP protocol implementation
+- `fastapi`: Modern, fast web framework for APIs  
+- `uvicorn`: ASGI server for FastAPI
+- `aiosqlite`: Async SQLite database operations
+- `httpx`: Async HTTP client for Rally API calls
+- `pydantic`: Data validation and serialization
+
+**Why FastMCP > Flask:**
+- ✅ Built-in MCP protocol support
+- ✅ Async performance advantages
+- ✅ Automatic OpenAPI documentation
+- ✅ Type safety with Pydantic models
+- ✅ Better error handling and debugging
+
+### �🔒 **Security Notes**
 
 1. **PKCE Verification**: Code challenge is verified against code verifier during token exchange
 2. **State Token Expiration**: OAuth states expire after 10 minutes for security
