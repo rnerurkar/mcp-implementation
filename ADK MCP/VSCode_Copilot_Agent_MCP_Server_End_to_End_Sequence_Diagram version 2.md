@@ -1,10 +1,59 @@
-# 🚀 End-to-End Flow: GitHub Copilot Agent with Custom MCP Server
+# 🚀 End-to-End Flow: GitHub Copilot Agent with Custom MCP Server (Realistic Implementation)
 
 ## 📋 Overview
 
-This document details the comprehensive end-to-end workflow of a user interacting with **GitHub Copilot's Agent Mode** to execute tasks against **Rally** through a custom **MCP (Model Context Protocol)** server, including **OAuth 2.1 authentic## 🔒 Security Controls Implementation Analysis
+This document details the **realistic** end-to-end workflow of a user interacting with **GitHub Copilot's Agent Mode** to execute tasks against **Rally** through a custom **MCP (Model Context Protocol)** server. 
 
-Since **GitHub Copilot Agent** and the underlying **LLM** are out-of-the-box services without access for custom security implementation, we must analyze which of the **9 MCP Framework Security Controls** from [SECURITY_CONTROLS_OVERVIEW.md](./SECURITY_CONTROLS_OVERVIEW.md) can be effectively implemented on the MCP Server.
+**⚠️ IMPORTANT**: This documentation reflects the **actual capabilities and limitations** of GitHub Copilot Agent, including the fact that it **cannot render interactive links** or handle automated OAuth flows.
+
+### Key Implementation Realities:
+- ✅ **Manual Authentication**: Users must manually open browser and complete OAuth flows
+- ✅ **Text-Based Instructions**: Agent provides URLs as text (not clickable links)
+- ✅ **User Confirmation Required**: Users must confirm authentication completion before retry
+- ✅ **Session-Based Token Management**: MCP Server maintains tokens linked to Agent sessions
+
+### Authentication Flow Summary:
+1. **Agent** detects authentication needed and provides text instructions
+2. **User** manually opens authentication URL in browser  
+3. **User** completes OAuth flow and returns to Agent
+4. **User** confirms completion, triggering Agent retry
+5. **MCP Server** uses stored tokens for subsequent requests## 🔒 Security Controls Implementation Analysis
+
+Since **GitHub Copilot Agent** and the underlying **LLM** are out-of-the-box services without access f## 🔑 Key Points
+
+| Aspect | Description |
+|--------|-------------|
+| 🆔 **Session ID Management** | Generated once by Agent and used consistently to maintain state |
+| 🔐 **OAuth Flow** | MCP server acts as OAuth client, handling entire flow including PKCE |
+| 🌐 **Manual Authentication** | **CRITICAL**: User must manually open browser and complete OAuth (Agent cannot render interactive links) |
+| 💬 **User Confirmation Required** | User must return to Agent and confirm "authentication complete" before retry |
+| 🔄 **Manual Retry Trigger** | Agent retries original request only after user confirmation (no automatic retry) |
+| 🛡️ **Security** | PKCE prevents authorization code interception; state parameter binds authentication to request |
+
+## ⚠️ **GitHub Copilot Limitations**
+
+| Limitation | Impact | Workaround |
+|------------|--------|------------|
+| **Cannot render clickable links** | No interactive OAuth flows | Provide text URLs for manual copying |
+| **Cannot open browser windows** | No automatic OAuth initiation | User must manually open authentication URLs |
+| **Cannot detect OAuth completion** | No automatic request retry | User must confirm completion before retry |
+| **Limited UI capabilities** | Text-only responses | Clear step-by-step instructions in text format |
+
+## ✅ **Realistic Implementation Pattern**
+
+### What GitHub Copilot CAN Do:
+- ✅ Display text messages with URLs
+- ✅ Make HTTP requests to MCP Server
+- ✅ Wait for user text responses
+- ✅ Retry requests based on user confirmation
+- ✅ Maintain conversation context
+
+### What GitHub Copilot CANNOT Do:
+- ❌ Render clickable links or buttons
+- ❌ Open browser windows
+- ❌ Handle OAuth redirects directly
+- ❌ Detect external authentication completion
+- ❌ Automatic retry without user inputm security implementation, we must analyze which of the **9 MCP Framework Security Controls** from [SECURITY_CONTROLS_OVERVIEW.md](./SECURITY_CONTROLS_OVERVIEW.md) can be effectively implemented on the MCP Server.
 
 ### 🎯 MCP Framework Security Controls Analysis for Out-of-Box Scenario
 
@@ -269,58 +318,36 @@ This security analysis ensures that all practical and effective security control
 
 ```mermaid
 sequenceDiagram
-    participant User as 👤 User (VSCode IDE)
-    participant Agent as 🤖 Copilot Agent
-    participant MCP as 🔧 MCP Server (GCP)
-    participant Browser as 🌐 User's Browser
-    participant OAuth as 🔐 OAuth Server (Rally)
-    participant Rally as 📊 Rally API
+    participant User
+    participant Agent as Copilot Agent
+    participant MCP as MCP Server
+    participant AuthSrv as Rally Auth Server
+    participant Browser as User's Browser
 
-    Note over User, Agent: 🚀 Agent Initialization
-    Agent->>Agent: Generate Session ID (UUID)
-    Agent->>Agent: Store in env var (COPILOT_MCP_SESSION_ID)
+    User->>Agent: 1. "Create a Rally story"
+    Agent->>MCP: 2. POST /tools/create-story<br>Session-ID: session_123
+    MCP->>MCP: 3. Check DB for token for session_123
+    MCP->>Agent: 4. HTTP 401 Unauthorized<br>Authentication Required<br>auth_url: "https://mcp.example.com/auth?state=xyz789"
 
-    Note over User, Agent: 💬 User Issues Query
-    User->>Agent: Chat: "Create a Rally story for task X"
-    Agent->>Agent: Parse query, determine Rally MCP server
-
-    Note over Agent, MCP: 📡 Initial Request with Session ID
-    Agent->>MCP: POST /tools/create_rally_story<br/>Headers: Session-ID, Content: query params
-    MCP->>MCP: Check auth status for session_id (no token found)
-    MCP-->>Agent: HTTP 401 + Auth Required + authURL
-
-    Note over Agent, User: 🔗 Prompt User for Auth
-    Agent->>User: Display clickable authURL in chat
-    User->>Browser: Click authURL (opens browser)
-
-    Note over Browser, OAuth: 🔐 OAuth Authentication in Browser
-    Browser->>OAuth: GET authURL (client_id, redirect_uri, state, code_challenge)
-    OAuth->>User: Show login and consent screen
-    User->>OAuth: Authenticate and consent
-    OAuth-->>Browser: Redirect to MCP with code and state
-
-    Note over Browser, MCP: 🔄 Token Exchange by MCP Server
-    Browser->>MCP: GET /oauth/callback?code=<code>&state=<state>
-    MCP->>MCP: Validate state, link to session_id
-    MCP->>OAuth: POST token endpoint (code, client_secret, code_verifier)
-    OAuth-->>MCP: Access token and refresh token
-    MCP->>MCP: Store tokens against session_id in database
-    MCP-->>Browser: HTML response: "Auth success. Close browser."
-
-    Note over User, Browser: ↩️ User Returns to IDE
-    Browser->>User: Display success message
-    User->>Browser: Close browser window
-
-    Note over Agent, MCP: 🔄 Retry Original Request
-    Agent->>MCP: POST /tools/create_rally_story<br/>Headers: Session-ID, Content: query params
-    MCP->>MCP: Find tokens for session_id
-    MCP->>Rally: Authenticated API call (POST /story with access token)
-    Rally-->>MCP: API response (story created)
-    MCP->>MCP: Sanitize response if needed
-    MCP-->>Agent: Tool result (success/failure)
-
-    Note over Agent, User: ✅ Deliver Result to User
-    Agent->>User: Display result in chat
+    Agent->>User: 5. Display message:<br>"🔐 Authentication required for Rally access.<br>Please visit: https://mcp.example.com/auth?state=xyz789<br>Then return here and say 'authentication complete'"
+    
+    Note over User,Browser: User manually opens browser and completes OAuth flow
+    User->>Browser: 6. Opens auth URL in browser
+    Browser->>MCP: 7. GET /auth?state=xyz789 (displays OAuth page)
+    MCP->>Browser: 8. Redirect to Rally OAuth server
+    Browser->>AuthSrv: 9. User authenticates and consents
+    AuthSrv->>MCP: 10. Redirect to /callback?code=abc123&state=xyz789
+    MCP->>AuthSrv: 11. POST /token (exchange code for tokens)
+    AuthSrv->>MCP: 12. access_token, refresh_token
+    MCP->>MCP: 13. Store tokens for session_123 (linked via state)
+    MCP->>Browser: 14. "✅ Authentication successful! You can now close this tab and return to VSCode."
+    
+    User->>Agent: 15. "Authentication complete"
+    Agent->>MCP: 16. RETRY POST /tools/create-story<br>Session-ID: session_123
+    MCP->>MCP: 17. Find stored tokens for session_123
+    MCP->>MCP: 18. Execute tool with stored tokens
+    MCP->>Agent: 19. 200 OK: Story created successfully
+    Agent->>User: 20. "✅ Rally story created successfully!"
 ```
 
 ---
@@ -362,25 +389,44 @@ MCP server processes the request:
 - ✅ **Checks** database for access token associated with Session ID
 - ❌ **No token exists** (first request)
 - **Responds** with `HTTP 401`
-- **Includes** OAuth authorization URL (`authURL`) with parameters:
-  - `client_id`: Rally OAuth application ID
-  - `redirect_uri`: MCP server's callback endpoint
-  - `state`: Token linked to the Session ID
-  - `code_challenge`: PKCE code challenge
+- **Includes** authentication URL in response body (not as a clickable link)
 
-### 5. 🔐 User Authentication via Browser
+### 5. 🔐 Manual User Authentication Flow
 
-User completes authentication flow:
+**⚠️ CRITICAL: GitHub Copilot Cannot Render Interactive Links**
 
-1. **Agent renders** `authURL` as clickable link in chat
-2. **User clicks** link, opening default browser to Rally OAuth page
-3. **User authenticates** with Rally and grants required permissions
+Instead of rendering clickable links (which Copilot cannot do), the Agent:
 
-### 6. 🔄 OAuth Redirect and Token Exchange
+1. **Displays text message** with authentication URL
+2. **Instructs user** to manually open the URL in browser
+3. **Waits for user confirmation** that authentication is complete
 
-OAuth flow completion:
+**Agent Response Example:**
+```
+🔐 Authentication required for Rally access.
 
-1. **Rally OAuth server** redirects to MCP server's redirect URI with authorization code and state
+Please follow these steps:
+1. Copy this URL: https://mcp.example.com/auth?state=xyz789
+2. Open it in your browser
+3. Complete the Rally authentication
+4. Return here and say "authentication complete"
+```
+
+### 6. 🌐 User Completes OAuth in Browser (Manual Process)
+
+User manually completes authentication:
+
+1. **User copies URL** from Copilot chat
+2. **Opens URL in browser** (separate from VSCode)
+3. **Completes OAuth flow** with Rally
+4. **Sees success message** in browser
+5. **Returns to VSCode** and confirms completion
+
+### 7. 🔄 OAuth Redirect and Token Exchange
+
+OAuth flow completion (same as before):
+
+1. **Rally OAuth server** redirects to MCP server's callback with authorization code
 2. **MCP server callback** endpoint:
    - ✅ Validates `state` parameter (CSRF protection)
    - 🔍 Retrieves associated Session ID
@@ -388,23 +434,30 @@ OAuth flow completion:
    - 💾 Stores tokens in database mapped to Session ID
    - 📄 Returns HTML success page to browser
 
-### 7. ↩️ User Return to IDE
+### 8. ↩️ User Confirmation and Request Retry
 
-User returns to development environment:
+**Critical Step**: User must manually confirm authentication completion:
 
-- 👀 **Sees** success message in browser
-- ❌ **Closes** browser window
+1. � **User returns to VSCode** and tells Agent "authentication complete"
+2. 🔄 **Agent retries** the original request with same Session ID
+3. 🔍 **MCP server finds** access token for Session ID
+4. 📡 **Makes authenticated** API call to Rally
+5. 🛡️ **Sanitizes response** if needed
+6. 📤 **Returns result** to Agent
+7. 💬 **Agent displays** result in chat
 
-### 8. ✅ Execution of Query
+### ⚠️ **Key Difference from Original Pattern**
 
-Agent completes the original request:
+**ORIGINAL (Incorrect)**: Assumed Agent could render clickable links and handle interactive OAuth
+```
+Agent->>User: 8. Render "Sign in to Rally" link  ❌ NOT POSSIBLE
+```
 
-1. 🔄 **Automatically retries** the original request with same Session ID
-2. 🔍 **MCP server finds** access token for Session ID
-3. 📡 **Makes authenticated** API call to Rally
-4. 🛡️ **Sanitizes response** if needed
-5. 📤 **Returns result** to Agent
-6. 💬 **Agent displays** result in chat
+**CORRECTED (Realistic)**: Agent provides text instructions for manual authentication
+```
+Agent->>User: 5. Display authentication instructions with URL  ✅ POSSIBLE
+User->>Agent: 15. "Authentication complete"  ✅ REQUIRED
+```
 
 ---
 
@@ -487,6 +540,57 @@ This mechanism ensures that even though the OAuth flow happens out-of-band in a 
 | 🛡️ **Security** | PKCE prevents authorization code interception; state parameter binds authentication to request |
 
 ---
+
+## 💬 **Realistic User Experience Example**
+
+Here's what the actual conversation flow looks like in GitHub Copilot:
+
+### Initial Request
+**User**: "Create a Rally story for implementing user authentication"
+
+**Copilot**: 
+```
+🔐 I need to authenticate with Rally to create stories. 
+
+Please follow these steps:
+1. Copy this URL: https://rally-mcp-server.gcp.cloud/auth?state=abc123xyz
+2. Open it in your browser
+3. Sign in to Rally and authorize access
+4. Once you see "Authentication successful", return here and type "authentication complete"
+
+I'll wait for your confirmation before proceeding.
+```
+
+### After User Completes OAuth
+**User**: "authentication complete"
+
+**Copilot**:
+```
+✅ Great! Let me create that Rally story now...
+
+📝 Rally story created successfully:
+- Title: "Implement user authentication"
+- ID: US12345
+- Status: Defined
+- Owner: john.doe@company.com
+
+The story has been added to your current iteration. You can view it at:
+https://rally1.rallydev.com/d/s/stories/US12345
+```
+
+### Subsequent Requests (Already Authenticated)
+**User**: "Create another Rally story for API testing"
+
+**Copilot**:
+```
+📝 Rally story created successfully:
+- Title: "Implement API testing framework"
+- ID: US12346
+- Status: Defined
+- Owner: john.doe@company.com
+
+Since you're already authenticated, I was able to create this story immediately.
+```
 
 ## ⚙️ Configuration Example (`mcp.json`)
 
