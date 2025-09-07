@@ -105,8 +105,6 @@ graph TB
     subgraph "RALLY BUSINESS SYSTEM"
         RALLY[Rally API<br/>🔐 Rally OAuth 2.1<br/>📊 Enterprise ALM Data]
     end
-        API[Rally API<br/>🏢 Enterprise Systems<br/>📊 Business Data]
-    end
     
     CA -->|Unsecured Requests| MCP
     LLM -->|AI Processing| CA
@@ -120,7 +118,7 @@ graph TB
     MCP -.-> SC7
     MCP -.-> SC8
     
-    MCP -->|Secured API Calls| API
+    MCP -->|Secured API Calls| RALLY
     
     style CA fill:#ffebee,stroke:#d32f2f,stroke-width:3px
     style LLM fill:#ffebee,stroke:#d32f2f,stroke-width:3px
@@ -134,7 +132,7 @@ graph TB
     style SC7 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,stroke-dasharray: 5 5
     style SC8 fill:#fff9c4,stroke:#f57f17,stroke-width:2px,stroke-dasharray: 5 5
     style SC9 fill:#ffebee,stroke:#d32f2f,stroke-width:2px,stroke-dasharray: 10 5
-    style API fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+    style RALLY fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
 ```
 
 ### 🔐 Security Implementation Mapping for Out-of-Box Scenario
