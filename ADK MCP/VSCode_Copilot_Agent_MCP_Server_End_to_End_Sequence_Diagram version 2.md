@@ -386,7 +386,122 @@ This security analysis ensures that all practical and effective security control
 **❌ OPAPolicyClient:**
 - **Reason**: Desktop Agent provides minimal context (no user roles, departments, etc.)
 - **Alternative**: Static session-based policies via ToolExposureController
-- **Data Evidence**: Limited contextual information from desktop environment PKCE**.
+- **Data Evidence**: Limited contextual information from desktop environment
+
+---
+
+## 🎨 **UPDATED Security Architecture Diagram**
+
+### 🛡️ Comprehensive Security Architecture for GitHub Copilot Agent + MCP Server Integration
+
+```mermaid
+graph TB
+    subgraph "DESKTOP ENVIRONMENT (Microsoft Managed)"
+        USER[👤 Developer<br/>VSCode Desktop]
+        CA[GitHub Copilot Agent<br/>❌ No Security Implementation Access<br/>🔒 Microsoft Managed<br/>📍 Desktop VSCode IDE]
+        LLM[OpenAI/Microsoft LLM<br/>❌ No Security Implementation Access<br/>🔒 OpenAI/Microsoft Managed<br/>🧠 Text Processing Only]
+        BROWSER[🌐 Web Browser<br/>Manual OAuth Flow<br/>User-driven Authentication]
+    end
+    
+    subgraph "CUSTOM MCP SERVER (Full Security Control)"
+        MCP[FastMCP Server<br/>✅ 5 MANDATORY Controls<br/>🔶 2 OPTIONAL Controls<br/>❌ 2 NOT APPLICABLE]
+        
+        subgraph "MANDATORY SECURITY CONTROLS"
+            SC1[1️⃣ InputSanitizer<br/>🔍 Prompt Injection Protection<br/>🛡️ Parameter Validation<br/>⚡ Real-time Processing]
+            SC3[3️⃣ SchemaValidator<br/>📋 JSON-RPC 2.0 Compliance<br/>✅ Pydantic Model Validation<br/>🔧 FastAPI Integration]
+            SC4[4️⃣ CredentialManager<br/>🗄️ Rally OAuth Token Storage<br/>🔐 PKCE Verifier Management<br/>💾 Secure Session Mapping]
+            SC5[5️⃣ ContextSanitizer<br/>🧹 Rally Response Sanitization<br/>🚫 PII/Sensitive Data Filtering<br/>📊 Response Processing]
+            SC6[6️⃣ ToolExposureController<br/>🎯 Rally Tool Access Control<br/>📝 Session-based Authorization<br/>🔒 Policy Enforcement]
+        end
+        
+        subgraph "OPTIONAL SECURITY CONTROLS"
+            SC7[7️⃣ ServerNameRegistry<br/>🏷️ MCP Server Identity<br/>🔍 Multi-server Validation<br/>🌐 Service Discovery]
+            SC8[8️⃣ SemanticMappingValidator<br/>🔍 Rally Tool Metadata<br/>📊 Dynamic Tool Validation<br/>🔧 Schema Consistency]
+        end
+        
+        subgraph "NOT APPLICABLE CONTROLS"
+            SC2[2️⃣ GoogleCloudTokenValidator<br/>❌ NOT APPLICABLE<br/>📍 Desktop Agent ≠ GCP Environment<br/>🚫 No Google Cloud Headers]
+            SC9[9️⃣ OPAPolicyClient<br/>❌ NOT APPLICABLE<br/>⚠️ Limited Desktop Context<br/>📋 Use Static Policies Instead]
+        end
+        
+        DB[(🗃️ Security Database<br/>OAuth States & Tokens<br/>Session Mappings<br/>PKCE Verifiers)]
+    end
+    
+    subgraph "RALLY BUSINESS SYSTEM"
+        RALLY_AUTH[🔐 Rally OAuth Server<br/>OAuth 2.1 + PKCE<br/>Authorization Endpoint]
+        RALLY_API[📊 Rally API<br/>ALM Business Data<br/>Enterprise Authentication]
+    end
+
+    %% Data Flow Connections
+    USER -->|1. Natural Language Request| CA
+    CA -->|2. Tool Request<br/>Session-ID Header<br/>JSON-RPC 2.0| MCP
+    MCP -->|3. 401 Unauthorized<br/>PKCE Auth URL<br/>Manual Instructions| CA
+    CA -->|4. Display Auth URL<br/>Copy-paste Instructions| USER
+    USER -->|5. Manual Browser Navigation| BROWSER
+    BROWSER -->|6. OAuth Authorization<br/>PKCE Challenge| RALLY_AUTH
+    RALLY_AUTH -->|7. Authorization Code<br/>PKCE Response| MCP
+    MCP -->|8. Token Exchange<br/>PKCE Verification| RALLY_AUTH
+    RALLY_AUTH -->|9. Access Tokens<br/>Refresh Tokens| MCP
+    MCP -->|10. Success Page<br/>Close Browser| BROWSER
+    USER -->|11. "Authentication Complete"| CA
+    CA -->|12. Retry Tool Request<br/>Same Session-ID| MCP
+    MCP -->|13. Authenticated Rally API<br/>Business Logic Calls| RALLY_API
+    RALLY_API -->|14. ALM Data<br/>Stories/Defects/Tests| MCP
+    MCP -->|15. Sanitized Response<br/>Filtered Data| CA
+    CA -->|16. Natural Language Response| USER
+
+    %% Security Control Connections
+    MCP --> SC1
+    MCP --> SC3
+    MCP --> SC4
+    MCP --> SC5
+    MCP --> SC6
+    MCP -.-> SC7
+    MCP -.-> SC8
+    MCP --> DB
+    SC4 --> DB
+
+    %% Styling
+    style SC2 fill:#ffcccc,stroke:#ff0000,stroke-width:2px
+    style SC9 fill:#ffcccc,stroke:#ff0000,stroke-width:2px
+    style USER fill:#e1f5fe
+    style CA fill:#fff3e0
+    style LLM fill:#fff3e0
+    style MCP fill:#e8f5e8
+    style RALLY_AUTH fill:#f3e5f5
+    style RALLY_API fill:#f3e5f5
+    style DB fill:#fff8e1
+    style BROWSER fill:#e1f5fe
+```
+
+### 🔄 **Security Control Activation Points**
+
+| **Step** | **Data Flow** | **Active Security Controls** | **Purpose** |
+|----------|---------------|------------------------------|-------------|
+| **2** | Agent → MCP Server | 🔍 InputSanitizer, 📋 SchemaValidator | Validate incoming tool requests |
+| **3** | MCP → Agent (401) | 🧹 ContextSanitizer, 🎯 ToolExposureController | Safe auth URLs, tool access control |
+| **7-9** | OAuth Token Exchange | 🗄️ CredentialManager | Secure PKCE verification and token storage |
+| **13** | MCP → Rally API | 🔍 InputSanitizer, 🗄️ CredentialManager | Validate outbound requests, manage credentials |
+| **14-15** | Rally → MCP → Agent | 🧹 ContextSanitizer, 🎯 ToolExposureController | Sanitize responses, control data exposure |
+
+### 🎯 **Security Implementation Layers**
+
+**Layer 1: Request Processing**
+- 🔍 **InputSanitizer** validates all user inputs and tool parameters
+- 📋 **SchemaValidator** enforces JSON-RPC 2.0 protocol compliance
+
+**Layer 2: Authentication & Authorization**  
+- 🗄️ **CredentialManager** handles OAuth tokens and PKCE verification
+- 🎯 **ToolExposureController** manages tool access and permissions
+
+**Layer 3: Response Processing**
+- 🧹 **ContextSanitizer** filters sensitive data from Rally responses
+- 🏷️ **ServerNameRegistry** (optional) validates server identity
+
+**Layer 4: Metadata Validation**
+- 🔍 **SemanticMappingValidator** (optional) ensures tool metadata consistency
+
+--- PKCE**.
 
 ---
 
