@@ -1,0 +1,40 @@
+
+# SharePoint Upload Instructions
+
+## Method 1: Using HTML Content
+1. Open your SharePoint site
+2. Go to Site Pages
+3. Click "+ New" > "Site page"
+4. Choose "Blank" template
+5. Click the "+" to add web parts
+6. Search for and add "Embed" web part
+7. Paste the HTML content from the generated .html file
+8. Save and publish
+
+## Method 2: Using Markdown Web Part
+1. Open your SharePoint site
+2. Go to Site Pages
+3. Click "+ New" > "Site page"
+4. Choose "Blank" template
+5. Click the "+" to add web parts
+6. Search for and add "Markdown" web part
+7. Paste your original .md content
+8. Save and publish
+
+## Method 3: Section by Section
+1. Copy content from the .html file in smaller sections
+2. Use different web parts:
+   - Text web part for regular content
+   - Code snippet web part for code blocks
+   - Table web part for tables
+   - Image web part for diagrams (after converting)
+
+## Notes for Diagrams
+- Mermaid diagrams need to be recreated in SharePoint
+- Use Visio Online or Microsoft Whiteboard
+- Or export diagrams as images and embed them
+
+## Styling Tips
+- SharePoint will apply its own theme colors
+- The generated HTML includes inline styles for better compatibility
+- You may need to adjust colors to match your SharePoint theme
