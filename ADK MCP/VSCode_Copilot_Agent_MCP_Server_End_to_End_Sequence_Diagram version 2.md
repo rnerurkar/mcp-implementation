@@ -283,26 +283,24 @@ semantic_validator.validate_tool_semantics(
 | 🏷️ **ServerNameRegistry** | 🔶 OPTIONAL on MCP Server | Server identity validation, multi-server scenarios |
 | 🔍 **SemanticMappingValidator** | 🔶 OPTIONAL on MCP Server | Rally tool metadata validation, dynamic registration |
 | ❌ **OPAPolicyClient** | ❌ NOT APPLICABLE | Limited desktop context, use static policies instead |
-| 🚫 **ServerNameRegistry** | 🔶 OPTIONAL on MCP Server | Custom registry, namespace management |
-| 📏 **SemanticMappingValidator** | 🔶 OPTIONAL on MCP Server | Metadata validation, semantic consistency |
-| 🛡️ **OPAPolicyClient** | ❌ SKIP - Use ToolExposureController | Limited context in out-of-box scenario |
 
-### � Security Coverage Analysis
+### 📊 Security Coverage Analysis
 
-**✅ Comprehensive Protection (6 Mandatory Controls)**
+**✅ Comprehensive Protection (5 Mandatory Controls)**
 - All critical attack vectors covered by MCP Server
 - Defense-in-depth with multiple security layers
-- OAuth 2.1 integration with Google Cloud authentication
-- Advanced threat detection via Model Armor integration
+- Rally OAuth 2.1 integration with PKCE authentication
+- Advanced response sanitization and PII protection
 
 **🔶 Enhanced Features (2 Optional Controls)**
 - Server identity verification for multi-server environments
 - Tool metadata validation for dynamic tool scenarios
 
-**❌ Limitations (1 Skipped Control)**
-- Cannot implement rich context-aware policies (use static service account policies instead)
+**❌ Not Applicable (2 Controls)**
+- Cannot implement Google Cloud token validation (desktop environment)
+- Cannot implement rich context-aware policies (use static session policies instead)
 - Limited visibility into Agent/LLM internal processing
-- Must rely on OAuth 2.1 service account permissions for user authorization
+- Must rely on Rally OAuth 2.1 and session-based permissions for user authorization
 
 This security analysis ensures that all practical and effective security controls from the MCP Framework are properly implemented for desktop Agent integration scenarios, with clear prioritization and evidence-based implementation guidance.
 
