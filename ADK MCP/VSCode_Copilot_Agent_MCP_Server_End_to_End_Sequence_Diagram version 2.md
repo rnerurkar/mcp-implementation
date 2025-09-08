@@ -578,18 +578,7 @@ OAuth flow completion with PKCE validation:
 6. 📤 **Returns result** to Agent
 7. 💬 **Agent displays** result in chat
 
-### ⚠️ **Key Difference from Original Pattern**
 
-**ORIGINAL (Incorrect)**: Assumed Agent could render clickable links and handle interactive OAuth
-```
-Agent->>User: 8. Render "Sign in to Rally" link  ❌ NOT POSSIBLE
-```
-
-**CORRECTED (Realistic)**: Agent provides text instructions for manual authentication
-```
-Agent->>User: 5. Display authentication instructions with URL  ✅ POSSIBLE
-User->>Agent: 15. "Authentication complete"  ✅ REQUIRED
-```
 
 ---
 
