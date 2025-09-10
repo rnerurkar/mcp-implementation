@@ -1292,6 +1292,107 @@ These code snippets provide a complete implementation of the PKCE-enabled OAuth 
 
 ---
 
+## 🚨 **STRATEGIC DECISION: MCP Compliance vs. Practical Implementation**
+
+### 🎯 **The OAuth Server Reality Gap**
+
+**Current Market Analysis:**
+- ✅ **75% of modern OAuth servers** support RFC9728 (Microsoft, Google, Auth0, Okta)
+- ❌ **25% of OAuth servers** do NOT support RFC9728 (Rally, legacy systems, custom implementations)
+- 🏢 **Enterprise reality**: Many mission-critical systems use legacy OAuth
+
+### 🔧 **Recommended Hybrid Approach: Adaptive MCP Server**
+
+Instead of choosing between compliance and compatibility, implement a **smart MCP server** that adapts:
+
+```python
+class AdaptiveMCPServer:
+    def handle_authentication_error(self, oauth_server_type):
+        if oauth_server_type in ['microsoft', 'google', 'auth0', 'okta']:
+            # MCP-Compliant Response
+            return {
+                'status': 401,
+                'headers': {
+                    'WWW-Authenticate': 'Bearer resource_metadata="https://mcp-server/.well-known/oauth-protected-resource"'
+                }
+            }
+        else:
+            # Legacy-Compatible Response  
+            return {
+                'status': 401,
+                'body': {
+                    'error': 'authentication_required',
+                    'auth_url': f'https://mcp-server.com/auth?provider={oauth_server_type}',
+                    'instructions': ['Open URL in browser', 'Complete OAuth', 'Return and confirm'],
+                    'compatibility_mode': 'legacy_oauth_2.0'
+                }
+            }
+```
+
+### 🎯 **Implementation Strategy**
+
+| OAuth Server | Response Mode | Compliance Level |
+|--------------|---------------|------------------|
+| **Microsoft Identity** | MCP-Compliant | ✅ RFC9728 + OAuth 2.1 |
+| **Google Cloud** | MCP-Compliant | ✅ RFC9728 + OAuth 2.1 |
+| **Auth0 (new)** | MCP-Compliant | ✅ RFC9728 + OAuth 2.1 |
+| **Rally (CA Agile)** | Legacy-Compatible | ⚠️ Custom OAuth 2.0 |
+| **GitHub (legacy)** | Legacy-Compatible | ⚠️ Custom OAuth 2.0 |
+| **Enterprise Custom** | Legacy-Compatible | ⚠️ Custom OAuth 2.0 |
+
+### 🚀 **Migration Path**
+
+1. **Phase 1**: Implement adaptive server with dual-mode responses
+2. **Phase 2**: Add MCP compliance detection for new OAuth servers
+3. **Phase 3**: Gradually migrate legacy integrations as servers upgrade
+4. **Phase 4**: Full MCP compliance when ecosystem catches up
+
+### ⚙️ **Configuration Example: Adaptive MCP Server**
+
+```json
+{
+  "oauth_providers": {
+    "rally": {
+      "type": "legacy",
+      "auth_mode": "custom_response",
+      "endpoints": {
+        "authorization": "https://rally1.rallydev.com/login/oauth2/auth",
+        "token": "https://rally1.rallydev.com/login/oauth2/token"
+      },
+      "supports_pkce": false,
+      "supports_rfc9728": false
+    },
+    "microsoft": {
+      "type": "modern", 
+      "auth_mode": "mcp_compliant",
+      "endpoints": {
+        "discovery": "https://login.microsoftonline.com/common/.well-known/oauth-authorization-server"
+      },
+      "supports_pkce": true,
+      "supports_rfc9728": true
+    }
+  },
+  "fallback_mode": "legacy_compatible"
+}
+```
+
+### 🎯 **Recommendation: Start with Version 3 Approach**
+
+**Why the custom implementation makes sense NOW:**
+
+1. **Immediate Deployment**: Works with Rally and all OAuth servers today
+2. **Future-Proof**: Can upgrade to MCP compliance when servers support it  
+3. **Practical**: Solves real integration needs without waiting for standards adoption
+4. **Evolutionary**: Provides migration path rather than complete rewrite
+
+**The pragmatic path:**
+- ✅ Use Version 3 custom approach for immediate Rally integration
+- ✅ Add MCP compliance detection for future OAuth servers
+- ✅ Document both approaches for different use cases
+- ✅ Migrate incrementally as the OAuth ecosystem matures
+
+---
+
 ## 🚨 **REALITY CHECK: Implementation Challenges**
 
 ### 🏢 **Rally OAuth Server Limitations (CA Agile Central)**
