@@ -402,41 +402,47 @@ This security analysis ensures that all practical and effective security control
 ```mermaid
 sequenceDiagram
     participant User
-    participant Agent as Copilot Agent<br/>(MCP Client)
-    participant MCP as MCP Server<br/>(Protected Resource)
-    participant AuthSrv as Rally Auth Server
-    participant Browser as User's Browser
+    participant Agent as Copilot Agent<br/>(VS Code Extension)
+    participant MCP as MCP Server<br/>(Custom Implementation)
+    participant AuthSrv as Rally OAuth Server<br/>(Legacy OAuth 2.0)
+    participant Browser as System Browser
 
     User->>Agent: 1. "Create a Rally story"
     Agent->>MCP: 2. POST /tools/create-story<br>Session-ID: session_123
     MCP->>MCP: 3. Check for valid access token
     
-    Note over MCP: MCP-Compliant Authentication Required
-    MCP->>Agent: 4. HTTP 401 Unauthorized<br>WWW-Authenticate: Bearer resource_metadata="https://mcp-server.com/.well-known/oauth-protected-resource"
+    Note over MCP: Rally doesn't support RFC9728 - Custom implementation needed
+    MCP->>Agent: 4. HTTP 401 Unauthorized<br>{"error": "authentication_required",<br> "auth_url": "https://mcp-server.com/auth?state=xyz&code_challenge=abc"}
     
-    Agent->>MCP: 5. GET /.well-known/oauth-protected-resource
-    MCP->>Agent: 6. Protected Resource Metadata:<br>{"resource": "https://mcp-server.com",<br> "authorization_servers": ["https://rally-auth.com"]}
+    Note over Agent: Agent attempts to launch browser automatically
+    Agent->>Browser: 5. Launch system browser with auth URL<br>(VS Code extension capability)
     
-    Agent->>Agent: 7. Validate metadata & discover authorization server
-    Agent->>AuthSrv: 8. GET /.well-known/oauth-authorization-server
-    AuthSrv->>Agent: 9. Authorization Server Metadata:<br>{"authorization_endpoint": "https://rally-auth.com/auth", ...}
+    Note over Browser,AuthSrv: Rally OAuth 2.0 flow (not MCP-compliant)
+    Browser->>MCP: 6. GET /auth?state=xyz&code_challenge=abc
+    MCP->>Browser: 7. Redirect to Rally OAuth:<br>https://rally1.rallydev.com/login/oauth2/auth?client_id=...&state=xyz
+    Browser->>AuthSrv: 8. User authenticates with Rally credentials
+    AuthSrv->>MCP: 9. Redirect to MCP callback:<br>/callback?code=auth_code&state=xyz
     
-    Agent->>Agent: 10. Generate PKCE parameters:<br>code_verifier, code_challenge, state
-    Agent->>User: 11. "🔐 Authentication required for Rally access.<br>Please visit: https://rally-auth.com/auth?client_id=...&code_challenge=...<br>Then return here and confirm completion"
+    MCP->>AuthSrv: 10. POST /token<br>grant_type=authorization_code<br>code=auth_code&client_id=...&client_secret=...
+    Note over MCP,AuthSrv: Rally uses client_secret (not PKCE)
+    AuthSrv->>MCP: 11. Access token + refresh token
+    MCP->>MCP: 12. Store tokens for session_123
+    MCP->>Browser: 13. "✅ Authentication successful!<br>You can close this tab."
     
-    Note over User,Browser: User manually completes OAuth 2.1 + PKCE flow
-    User->>Browser: 12. Opens authorization URL in browser
-    Browser->>AuthSrv: 13. GET /auth?client_id=...&code_challenge=...&state=...
-    AuthSrv->>Browser: 14. User authenticates and consents
-    AuthSrv->>Agent: 15. Redirect to Agent callback with authorization code
-    Agent->>AuthSrv: 16. POST /token<br>code=auth_code&code_verifier=...
-    AuthSrv->>Agent: 17. Access token + refresh token (PKCE verified)
+    Note over Agent: Agent detects auth completion or user confirms
+    alt Automatic Detection
+        Agent->>MCP: 14a. Polling check: GET /auth-status?session=session_123
+        MCP->>Agent: 15a. {"authenticated": true}
+    else User Confirmation Required
+        User->>Agent: 14b. "Authentication complete"
+        Agent->>Agent: 15b. Proceed with retry
+    end
     
-    User->>Agent: 18. "Authentication complete"
-    Agent->>MCP: 19. RETRY POST /tools/create-story<br>Authorization: Bearer <access_token>
-    MCP->>MCP: 20. Validate access token & execute tool
-    MCP->>Agent: 21. 200 OK: Story created successfully
-    Agent->>User: 22. "✅ Rally story created successfully!"
+    Agent->>MCP: 16. RETRY POST /tools/create-story<br>Session-ID: session_123
+    MCP->>MCP: 17. Find stored tokens for session_123
+    MCP->>MCP: 18. Execute Rally API call with stored token
+    MCP->>Agent: 19. 200 OK: Story created successfully
+    Agent->>User: 20. "✅ Rally story created successfully!"
 ```
 
 ---
@@ -1277,6 +1283,53 @@ These code snippets provide a complete implementation of the PKCE-enabled OAuth 
 
 **🔒 PKCE Security Flow:**
 1. MCP Server generates random `code_verifier`
+2. MCP Server creates `code_challenge = SHA256(code_verifier)`
+3. Authorization URL includes `code_challenge` parameter
+4. OAuth server stores `code_challenge` for this authorization request
+5. Token exchange includes original `code_verifier`
+6. OAuth server verifies `SHA256(received_code_verifier) == stored_code_challenge`
+7. Tokens issued only if PKCE verification passes
+
+---
+
+## 🚨 **REALITY CHECK: Implementation Challenges**
+
+### 🏢 **Rally OAuth Server Limitations (CA Agile Central)**
+
+**❌ What Rally CANNOT Support:**
+- RFC9728 Protected Resource Metadata endpoints
+- OAuth 2.1 PKCE verification (code_challenge/code_verifier)
+- WWW-Authenticate headers with resource_metadata parameter
+- Modern OAuth discovery mechanisms
+
+**✅ What Rally DOES Support:**
+- OAuth 2.0 authorization code flow
+- Client ID + Client Secret authentication
+- Scopes: `alm:read`, `alm:write`
+- Standard redirect_uri handling
+
+### 🤖 **GitHub Copilot Agent Browser Capabilities**
+
+**🔶 Probably CAN Do (VS Code Extension Context):**
+- Launch system browser via VS Code API
+- Open URLs in VS Code Simple Browser
+- Detect window focus/blur events
+- Poll for authentication completion
+
+**❌ Definitely CANNOT Do:**
+- Direct OAuth redirect handling (security restriction)
+- Access to browser cookies/storage
+- Cross-origin authentication detection
+- Automatic token extraction from browser
+
+### 🔧 **Required Implementation Compromises**
+
+1. **Security Downgrade**: Use client_secret instead of PKCE
+2. **Manual Fallback**: Provide text URLs if auto-launch fails
+3. **Custom Protocol**: Non-MCP-compliant authentication responses
+4. **Polling Pattern**: Check authentication status instead of real-time detection
+
+---
 2. MCP Server creates `code_challenge = SHA256(code_verifier)`
 3. Authorization URL includes `code_challenge` parameter
 4. OAuth server stores `code_challenge` for this authorization request
